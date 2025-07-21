@@ -7,4 +7,5 @@ s.start_stop_id = c.from_stop_id AND s.end_stop_id = c.to_stop_id AND
 date BETWEEN '2025-07-07' AND '2025-08-03'
 GROUP BY c.from_stop_id, c.from_stop_name, c.to_stop_id, c.to_stop_name,
 s.geometry
-ORDER BY notrips DESC, c.from_stop_name, c.to_stop_name;
+ORDER BY notrips DESC, c.from_stop_name, c.to_stop_name
+LIMIT 20;

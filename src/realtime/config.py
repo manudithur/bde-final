@@ -17,7 +17,7 @@ ENDPOINTS = {
 }
 
 # Data Storage Configuration
-DATA_DIR = "../data/realtime"
+DATA_DIR = "src/data/realtime"
 PARQUET_DIR = f"{DATA_DIR}/parquet"
 VEHICLE_POSITIONS_FILE = f"{PARQUET_DIR}/vehicle_positions.parquet"
 TRIP_UPDATES_FILE = f"{PARQUET_DIR}/trip_updates.parquet"

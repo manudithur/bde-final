@@ -163,7 +163,7 @@ echo "Zip file created successfully!"
 
 # Create route segments
 echo "Creating route segments..."
-if ! python src/scripts/split_into_segments.py "$GTFS_ZIP" \
+if ! python src/static/split_into_segments.py "$GTFS_ZIP" \
     --start-date "$START_DATE" --end-date "$END_DATE" \
     --db-host "$DB_HOST" --db-user "$DB_USER" --db-pass "$DB_PASS" --db-name "$DB_NAME"; then
     echo "Error: Failed to create route segments"

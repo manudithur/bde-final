@@ -32,14 +32,14 @@ if [ $? -eq 0 ]; then
     echo "Running data processing pipeline..."
     
     echo "Step 1: Running data pruner..."
-    python3 src/scripts/data_pruner.py
+    python3 src/static/data_pruner.py
     if [ $? -ne 0 ]; then
         echo "Data pruner failed!"
         exit 1
     fi
     
     echo "Step 2: Running data wrangler..."
-    python3 src/scripts/data_wrangler.py
+    python3 src/static/data_wrangler.py
     if [ $? -ne 0 ]; then
         echo "Data wrangler failed!"
         exit 1
@@ -47,7 +47,7 @@ if [ $? -eq 0 ]; then
     
     echo "Data processing pipeline completed successfully!"
     echo "Processed GTFS files are available in src/data/gtfs_pruned/ directory"
-    echo "You can now run: python src/scripts/split_into_segments.py (requires database setup)"
+    echo "You can now run: import_gtfs.sh (requires database setup)"
 else
     echo "Download failed!"
     exit 1

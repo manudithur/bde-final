@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# split_into_segments.py - Generate route segments from GTFS stop-to-stop connections
+# split_into_segments_mapmatched.py - Generate map-matched route segments from GTFS
 
 import argparse
 import pandas as pd
@@ -9,6 +9,10 @@ from shapely.geometry import LineString, Point
 import zipfile
 import tempfile
 import os
+import requests
+import time
+from typing import List, Tuple, Optional
+import json
 
 def load_gtfs_from_zip(zip_path):
     """Load GTFS data from zip file"""
@@ -71,19 +75,66 @@ def filter_by_date_range(trips, calendar, calendar_dates, start_date, end_date):
     
     return filtered_trips
 
-def create_segments_from_stops(stops, stop_times, filtered_trips):
-    """Create route segments from stop-to-stop connections"""
-    print("🔗 Creating segments from stop-to-stop connections...")
+def get_osrm_route(start_coord: Tuple[float, float], end_coord: Tuple[float, float], 
+                   osrm_server: str = "http://router.project-osrm.org") -> Optional[LineString]:
+    """
+    Get map-matched route between two coordinates using OSRM
+    
+    Args:
+        start_coord: (lon, lat) tuple for start point
+        end_coord: (lon, lat) tuple for end point  
+        osrm_server: OSRM server URL
+        
+    Returns:
+        LineString geometry following roads, or None if routing fails
+    """
+    try:
+        # OSRM route API endpoint
+        url = f"{osrm_server}/route/v1/driving/{start_coord[0]},{start_coord[1]};{end_coord[0]},{end_coord[1]}"
+        params = {
+            'overview': 'full',
+            'geometries': 'geojson'
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('routes') and len(data['routes']) > 0:
+                route = data['routes'][0]
+                if 'geometry' in route and 'coordinates' in route['geometry']:
+                    coords = route['geometry']['coordinates']
+                    if len(coords) >= 2:
+                        # Convert coordinates to (lon, lat) tuples for Shapely
+                        return LineString(coords)
+        
+        # Fall back to straight line if routing fails
+        return LineString([start_coord, end_coord])
+        
+    except Exception as e:
+        print(f"⚠️ Routing failed for segment, using straight line: {e}")
+        return LineString([start_coord, end_coord])
+
+def create_mapmatched_segments(stops, stop_times, filtered_trips, use_map_matching=True, 
+                             osrm_server="http://router.project-osrm.org"):
+    """Create map-matched route segments from stop-to-stop connections"""
+    print("🔗 Creating map-matched segments from stop-to-stop connections...")
+    print(f"🗺️ Map matching: {'Enabled' if use_map_matching else 'Disabled (straight lines)'}")
+    
+    if use_map_matching:
+        print(f"🌐 Using OSRM server: {osrm_server}")
+        print("⏳ This will take longer due to routing API calls...")
     
     # Create stops lookup
     stops_dict = stops.set_index('stop_id').to_dict('index')
     
     segments = []
     trip_count = 0
+    routing_cache = {}  # Cache routes between same stop pairs
     
     for trip_id in filtered_trips['trip_id']:
         trip_count += 1
-        if trip_count % 1000 == 0:
+        if trip_count % 100 == 0:  # Reduced frequency to avoid spam with API calls
             print(f"  Processing trip {trip_count}/{len(filtered_trips)}...")
         
         # Get stop_times for this trip, sorted by stop_sequence
@@ -108,11 +159,25 @@ def create_segments_from_stops(stops, stop_times, filtered_trips):
                 current_coords = stops_dict[current_stop_id]
                 next_coords = stops_dict[next_stop_id]
                 
-                # Create LineString geometry
-                line = LineString([
-                    (current_coords['stop_lon'], current_coords['stop_lat']),
-                    (next_coords['stop_lon'], next_coords['stop_lat'])
-                ])
+                start_coord = (current_coords['stop_lon'], current_coords['stop_lat'])
+                end_coord = (next_coords['stop_lon'], next_coords['stop_lat'])
+                
+                # Create geometry (map-matched or straight line)
+                if use_map_matching:
+                    # Check cache first
+                    cache_key = f"{current_stop_id}->{next_stop_id}"
+                    if cache_key in routing_cache:
+                        line = routing_cache[cache_key]
+                    else:
+                        line = get_osrm_route(start_coord, end_coord, osrm_server)
+                        routing_cache[cache_key] = line
+                        # Small delay to be nice to the API
+                        time.sleep(0.1)
+                else:
+                    line = LineString([start_coord, end_coord])
+                
+                if line is None:
+                    continue
                 
                 # Create segment record
                 segment = {
@@ -128,12 +193,15 @@ def create_segments_from_stops(stops, stop_times, filtered_trips):
                     'stop_sequence_to': next_stop['stop_sequence'],
                     'arrival_time': next_stop['arrival_time'],
                     'departure_time': current_stop['departure_time'],
+                    'is_map_matched': use_map_matching,
                     'geometry': line
                 }
                 
                 segments.append(segment)
     
     print(f"✅ Created {len(segments)} segments from {trip_count} trips")
+    if use_map_matching:
+        print(f"🗺️ Used {len(routing_cache)} unique route calculations (cached duplicates)")
     
     # Convert to GeoDataFrame
     segments_gdf = gpd.GeoDataFrame(segments, crs='EPSG:4326')
@@ -156,7 +224,7 @@ def save_to_postgis(gdf, table_name, db_host, db_port, db_user, db_pass, db_name
     print(f"✅ Data saved to {table_name} table in the {db_name} database.")
 
 def main():
-    parser = argparse.ArgumentParser(description='Generate route segments from GTFS stop-to-stop connections')
+    parser = argparse.ArgumentParser(description='Generate map-matched route segments from GTFS')
     parser.add_argument('gtfs_zip', help='Path to the GTFS zip file')
     parser.add_argument('--start-date', required=True, help='Start date (YYYY-MM-DD format)')
     parser.add_argument('--end-date', required=True, help='End date (YYYY-MM-DD format)')
@@ -166,13 +234,17 @@ def main():
     parser.add_argument('--db-user', required=True, help='Database username')
     parser.add_argument('--db-pass', required=True, help='Database password')
     parser.add_argument('--db-name', required=True, help='Database name')
+    parser.add_argument('--no-map-matching', action='store_true', help='Disable map matching (use straight lines)')
+    parser.add_argument('--osrm-server', default='http://router.project-osrm.org', 
+                       help='OSRM server URL (default: public server)')
     
     args = parser.parse_args()
     
-    print("=== GTFS SEGMENTS GENERATOR ===")
+    print("=== GTFS MAP-MATCHED SEGMENTS GENERATOR ===")
     print(f"Input: {args.gtfs_zip}")
     print(f"Date range: {args.start_date} to {args.end_date}")
     print(f"Output: {args.table_name} table in {args.db_name}")
+    print(f"Map matching: {'Disabled' if args.no_map_matching else 'Enabled'}")
     
     try:
         # Load GTFS data
@@ -181,14 +253,18 @@ def main():
         # Filter by date range
         filtered_trips = filter_by_date_range(trips, calendar, calendar_dates, args.start_date, args.end_date)
         
-        # Create segments
-        segments_gdf = create_segments_from_stops(stops, stop_times, filtered_trips)
+        # Create segments (map-matched or straight line)
+        segments_gdf = create_mapmatched_segments(
+            stops, stop_times, filtered_trips, 
+            use_map_matching=not args.no_map_matching,
+            osrm_server=args.osrm_server
+        )
         
         # Save to PostGIS
         save_to_postgis(segments_gdf, args.table_name, args.db_host, args.db_port,
                        args.db_user, args.db_pass, args.db_name)
         
-        print("🎉 Segments generation completed successfully!")
+        print("🎉 Map-matched segments generation completed successfully!")
         
     except Exception as e:
         print(f"❌ Error: {e}")

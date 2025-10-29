@@ -20,7 +20,7 @@ Process and analyze GTFS transit data from Brussels' STIB-MIVB public transport 
    PGHOST=localhost
    PGUSER=postgres
    PGPASSWORD=postgres
-   PGDATABASE=gtfs_be
+   PGDATABASE=gtfs
    ```
 
 3. **Download and Process Data**
@@ -30,7 +30,7 @@ Process and analyze GTFS transit data from Brussels' STIB-MIVB public transport 
 
 4. **Setup Database**
    ```bash
-   createdb gtfs_be
+   createdb gtfs
    ```
 
 5. **Import and Process Data** (All-in-one)

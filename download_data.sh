@@ -5,24 +5,28 @@ if [ -f .env ]; then
     export $(cat .env | grep -v '^#' | xargs)
 fi
 
-# Download GTFS data from STIB-MIVB API
-echo "Downloading GTFS data from STIB-MIVB..."
+# Process North West England GTFS data
+echo "Processing North West England GTFS data..."
 
 # Create data directory structure if it doesn't exist
 mkdir -p src/data
 
-# Download the zip file with the expected naming convention
-curl -o src/data/gtfs-be.zip "https://data.stib-mivb.brussels/api/explore/v2.1/catalog/datasets/gtfs-files-production/alternative_exports/gtfszip/"
-
-if [ $? -eq 0 ]; then
-    echo "Download completed successfully!"
-    echo "GTFS data saved to: src/data/gtfs-be.zip"
+# Check if North West England data already exists
+if [ -f "src/data/itm_north_west_gtfs.zip" ]; then
+    echo "North West England GTFS data found!"
+    echo "Using existing file: src/data/itm_north_west_gtfs.zip"
+    
+    # Clean up existing directories for fresh extraction
+    echo "Cleaning up existing data directories..."
+    rm -rf src/data/gtfs_be
+    rm -rf src/data/gtfs_pruned
+    rm -rf src/data/gtfs_full_backup
     
     # Extract the zip file to the expected directory
     echo "Extracting GTFS data..."
     cd src/data
     mkdir -p gtfs_be
-    unzip -o gtfs-be.zip -d gtfs_be/
+    unzip -o itm_north_west_gtfs.zip -d gtfs_be/
     cd ../..
     
     echo "Extraction completed!"
@@ -38,10 +42,10 @@ if [ $? -eq 0 ]; then
         exit 1
     fi
     
-    echo "Step 2: Running data wrangler..."
+    echo "Step 2: Running Manchester area filter..."
     python3 src/static/data_wrangler.py
     if [ $? -ne 0 ]; then
-        echo "Data wrangler failed!"
+        echo "Manchester area filter failed!"
         exit 1
     fi
     
@@ -49,6 +53,7 @@ if [ $? -eq 0 ]; then
     echo "Processed GTFS files are available in src/data/gtfs_pruned/ directory"
     echo "You can now run: import_gtfs.sh (requires database setup)"
 else
-    echo "Download failed!"
+    echo "North West England GTFS data not found!"
+    echo "Please ensure the file 'src/data/itm_north_west_gtfs.zip' exists"
     exit 1
 fi

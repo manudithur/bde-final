@@ -9,7 +9,7 @@ fi
 # Usage: ./import_gtfs.sh [OPTIONS]
 # 
 # Required parameters:
-#   --db-host     Database host (default: localhost)
+#   --db-host     Database host (default: BD-ESPACIALES)
 #   --db-user     Database user (default: postgres)
 #   --db-pass     Database password (default: postgres)
 #   --db-name     Database name (default: gtfs_be)
@@ -20,7 +20,7 @@ fi
 set -e  # Exit on any error
 
 # Default values (use env vars if available)
-DB_HOST="${PGHOST:-localhost}"
+DB_HOST="${PGHOST:-BD-ESPACIALES}"
 DB_USER="${PGUSER:-postgres}"
 DB_PASS="${PGPASSWORD:-postgres}"
 DB_NAME="${PGDATABASE:-gtfs_be}"
@@ -63,7 +63,7 @@ while [[ $# -gt 0 ]]; do
         --help)
             echo "Usage: $0 [OPTIONS]"
             echo "Options:"
-            echo "  --db-host     Database host (default: localhost)"
+            echo "  --db-host     Database host (default: BD-ESPACIALES)"
             echo "  --db-user     Database user (default: postgres)"
             echo "  --db-pass     Database password (default: postgres)"
             echo "  --db-name     Database name (default: gtfs_be)"
@@ -100,11 +100,6 @@ if [[ ! -d "$GTFS_PATH" ]]; then
     exit 1
 fi
 
-if [[ ! -f "$GTFS_ZIP" ]]; then
-    echo "Error: GTFS zip file '$GTFS_ZIP' not found"
-    echo "Run ./download_data.sh first to download the data"
-    exit 1
-fi
 
 echo "Starting GTFS import and processing..."
 echo "Database: $DB_USER@$DB_HOST/$DB_NAME"
@@ -117,31 +112,41 @@ export PGUSER="$DB_USER"
 export PGPASSWORD="$DB_PASS"
 export PGDATABASE="$DB_NAME"
 
-# Test database connection
-echo "Testing database connection..."
-if ! psql -c "SELECT 1;" >/dev/null 2>&1; then
-    echo "Error: Cannot connect to database"
-    echo "Make sure PostgreSQL is running and credentials are correct"
+# Test database connection using Docker
+echo "Testing database connection to Docker container..."
+if ! docker exec BD-ESPACIALES psql -U "$DB_USER" -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
+    echo "Error: Cannot connect to database in Docker container '$DB_HOST'"
+    echo "Make sure Docker container '$DB_HOST' is running and credentials are correct"
     exit 1
 fi
 
-# Check if database exists, create if not
-if ! psql -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
-    echo "Creating database '$DB_NAME'..."
-    createdb "$DB_NAME"
+# Force delete and recreate database
+echo "Force deleting existing database '$DB_NAME'..."
+if docker exec BD-ESPACIALES psql -U "$DB_USER" -d postgres -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
+    echo "Dropping existing database '$DB_NAME'..."
+    docker exec BD-ESPACIALES dropdb -U "$DB_USER" "$DB_NAME" --force
 fi
+
+echo "Creating fresh database '$DB_NAME'..."
+docker exec BD-ESPACIALES createdb -U "$DB_USER" "$DB_NAME"
+
+# Copy GTFS data to Docker container
+echo "Copying GTFS data to Docker container..."
+docker exec BD-ESPACIALES mkdir -p /tmp/gtfs
+docker cp "$GTFS_PATH/." BD-ESPACIALES:/tmp/gtfs/
 
 # Import GTFS data to SQL
 echo "Importing GTFS data to database..."
-cd "$GTFS_PATH"
 
-# Run gtfs-to-sql and import to database
-if ! gtfs-to-sql --require-dependencies -- *.txt | psql -b; then
+# Run gtfs-to-sql and import to database via Docker
+echo "Generating SQL from GTFS files..."
+docker exec BD-ESPACIALES sh -c "cd /tmp/gtfs && gtfs-to-sql --require-dependencies --routes-without-agency-id --trips-without-shape-id -- *.txt > /tmp/gtfs_import.sql"
+
+echo "Importing SQL into database..."
+if ! docker exec BD-ESPACIALES psql -U "$DB_USER" -d "$DB_NAME" -f /tmp/gtfs_import.sql; then
     echo "Error: Failed to import GTFS data"
     exit 1
 fi
-
-cd - >/dev/null
 
 echo "GTFS data imported successfully!"
 
@@ -161,11 +166,22 @@ cd - >/dev/null
 
 echo "Zip file created successfully!"
 
-# Create route segments
+# Copy zip file and Python script to Docker container
+echo "Copying zip file to Docker container..."
+docker cp "$GTFS_ZIP" BD-ESPACIALES:/tmp/gtfs_pruned.zip
+
+echo "Copying Python script to Docker container..."
+docker cp src/static/split_into_segments_mapmatched.py BD-ESPACIALES:/tmp/split_into_segments.py
+
 echo "Creating route segments..."
-if ! python src/static/split_into_segments.py "$GTFS_ZIP" \
+echo "⏳ Processing ~1.6M stop_times records - this may take 15-30 minutes..."
+echo "📊 Progress will be shown below:"
+echo ""
+
+# Run with interactive terminal and real-time output
+if ! docker exec -it BD-ESPACIALES python3 -u /tmp/split_into_segments.py "/tmp/gtfs_pruned.zip" \
     --start-date "$START_DATE" --end-date "$END_DATE" \
-    --db-host "$DB_HOST" --db-user "$DB_USER" --db-pass "$DB_PASS" --db-name "$DB_NAME"; then
+    --db-host localhost --db-user "$DB_USER" --db-pass "$DB_PASS" --db-name "$DB_NAME"; then
     echo "Error: Failed to create route segments"
     exit 1
 fi

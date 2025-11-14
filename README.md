@@ -1,80 +1,161 @@
-# Brussels Transit Data Analysis
+# Vancouver GTFS Analysis
 
-Process and analyze GTFS transit data from Brussels' STIB-MIVB public transport system.
+Spatial database analysis of Vancouver transit data with proximity analysis.
 
 ## Quick Start
 
-1. **Install Dependencies**
-   ```bash
-   pip install -r requirements.txt
-   npm install -g gtfs-via-postgres
-   ```
+### 1. Install Dependencies
 
-2. **Setup Environment Variables**
-   Create a `.env` file in the project root:
-   ```bash
-   # STIB-MIVB API Key (get yours at: https://data.stib-mivb.brussels/account/)
-   STIB_API_KEY=your_api_key_here
-   
-   # Database Configuration
-   PGHOST=localhost
-   PGUSER=postgres
-   PGPASSWORD=postgres
-   PGDATABASE=gtfs
-   ```
+```bash
+pip install -r requirements.txt
+pip install -r static_analysis/requirements.txt
+pip install -r live_transit/requirements.txt
+npm install -g gtfs-via-postgres
+```
 
-3. **Download and Process Data**
-   ```bash
-   ./download_data.sh
-   ```
+### 2. Setup Environment
 
-4. **Setup Database**
-   ```bash
-   createdb gtfs
-   ```
+Create `.env` file:
+```bash
+PGHOST=localhost
+PGPORT=5432
+PGUSER=postgres
+PGPASSWORD=postgres
+PGDATABASE=gtfs
+```
 
-5. **Import and Process Data** (All-in-one)
-   ```bash
-   ./import_gtfs.sh --start-date 2025-07-07 --end-date 2025-08-03
-   ```
+### 3. Start Database
 
-   Or manually:
-   - Import to Database:
-     ```bash
-     cd src/data/gtfs_pruned
-     export PGDATABASE=gtfs_be
-     export PGUSER=postgres
-     export PGPASSWORD=postgres
-     gtfs-to-sql --require-dependencies -- *.txt | psql -b
-     ```
-   - Create Route Segments:
-     ```bash
-     python src/scripts/split_into_segments.py src/data/gtfs_pruned.zip \
-       --start-date 2025-07-07 --end-date 2025-08-03 \
-       --db-host localhost --db-user postgres --db-pass postgres --db-name gtfs_be
-     ```
+```bash
+# Linux/WSL
+chmod +x start_database.sh setup_database.sh check_mobilitydb.sh
+./start_database.sh
 
-## What This Does
+# Or manually
+docker-compose up -d
+./setup_database.sh
+```
 
-- Downloads GTFS data from STIB-MIVB Brussels transit
-- Processes and cleans the data automatically
-- Imports transit routes, stops, and schedules into PostgreSQL
-- Creates route segments for analysis and visualization
-- Enables real-time data collection and analysis
+**Important:** If you're switching from a different PostGIS image, you may need to remove old volumes:
+```bash
+docker-compose down -v  # Removes volumes with old data
+docker-compose up -d    # Starts fresh with MobilityDB image
+./setup_database.sh     # Sets up database and extensions
+```
+
+### 4. Download & Process Data
+
+```bash
+bash data/download_data.sh
+```
+
+### 5. Import GTFS Data
+
+```bash
+cd data/gtfs_pruned
+gtfs-to-sql --require-dependencies -- *.txt | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+```
+
+### 6. Import MobilityDB Schema
+
+```bash
+cd ../..
+cat static_analysis/mobilitydb_import.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+```
+
+### 7. Run Analysis Queries
+
+```bash
+cat static_analysis/spatial_queries.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+```
+
+### 8. Generate Visualizations
+
+```bash
+cd static_analysis
+python route_density_analysis.py
+python stadium_proximity_analysis.py
+```
+
+### 9. View Data in GIS Applications
+
+**QGIS (Recommended - Free & Open Source):**
+- Download: https://qgis.org/
+- Connect to database:
+  1. Layer → Add Layer → Add PostGIS Layers
+  2. New connection:
+     - Name: Vancouver GTFS
+     - Host: localhost
+     - Port: 5432
+     - Database: gtfs
+     - Username: postgres
+     - Password: postgres
+  3. Select tables to view (e.g., `stops`, `route_segments`, `scheduled_trips_mdb`)
 
 ## Project Structure
 
 ```
-src/
-├── data/              # GTFS and real-time data storage
-├── scripts/           # Data processing scripts
-├── queries/           # SQL analysis queries
-└── realtime/          # Real-time data collection
+.
+├── data/                    # GTFS data
+│   ├── download_data.sh    # Download and process GTFS
+│   └── gtfs_pruned/         # Processed GTFS files
+├── static_analysis/          # Static schedule analysis
+│   ├── mobilitydb_import.sql
+│   ├── spatial_queries.sql
+│   └── *.py                 # Visualization scripts
+├── live_transit/            # Real-time analysis
+│   ├── realtime_mobilitydb_import.sql
+│   ├── realtime_queries.sql
+│   └── *.py                 # Analysis scripts
+├── docker-compose.yml       # Database & Valhalla
+├── setup_database.sh        # Database setup
+└── start_database.sh        # Quick start
 ```
 
-## Prerequisites
+## Database Commands
 
-- PostgreSQL with MobilityDB extensions
-- Python 3.8+
-- Node.js > 14 (for GTFS tools)
+```bash
+# Connect to database
+docker exec -it vancouver_gtfs_db psql -U postgres -d gtfs
 
+# Run SQL file
+cat file.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+
+# Stop/Start
+docker-compose down
+docker-compose up -d
+```
+
+## Troubleshooting
+
+**Line ending errors (Linux/WSL):**
+```bash
+find . -name "*.sh" -exec sed -i 's/\r$//' {} \; -exec chmod +x {} \;
+```
+
+**Database doesn't exist:**
+```bash
+docker exec -i vancouver_gtfs_db psql -U postgres -c "CREATE DATABASE gtfs;"
+docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+```
+
+**Missing tables:** Run Step 5 (GTFS import) before Step 6 (MobilityDB import).
+
+**`valid_shape_id` constraint error:** Make sure you use the `--trips-without-shape-id` flag in Step 5. If you already imported without it, run:
+```bash
+cat fix_trips_shape_id.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+```
+
+**MobilityDB extension not available:**
+```bash
+# 1. Make sure you're using the correct image
+docker-compose down -v  # Remove old volumes
+docker-compose up -d    # Start with new image
+
+# 2. Check if extension is available
+chmod +x check_mobilitydb.sh
+./check_mobilitydb.sh
+
+# 3. If still failing, check container logs
+docker logs vancouver_gtfs_db
+```

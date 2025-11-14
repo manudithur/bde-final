@@ -15,7 +15,7 @@ fi
 #   --db-name     Database name (default: gtfs_be)
 #   --start-date  Start date for segments (YYYY-MM-DD)
 #   --end-date    End date for segments (YYYY-MM-DD)
-#   --gtfs-path   Path to GTFS data directory (default: src/data/gtfs_pruned)
+#   --gtfs-path   Path to GTFS data directory (default: data/gtfs_pruned)
 
 set -e  # Exit on any error
 
@@ -26,8 +26,8 @@ DB_PASS="${PGPASSWORD:-postgres}"
 DB_NAME="${PGDATABASE:-gtfs_be}"
 START_DATE=""
 END_DATE=""
-GTFS_PATH="src/data/gtfs_pruned"
-GTFS_ZIP="src/data/gtfs_pruned.zip"
+GTFS_PATH="data/gtfs_pruned"
+GTFS_ZIP="data/gtfs_pruned.zip"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do

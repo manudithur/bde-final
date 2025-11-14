@@ -1,0 +1,37 @@
+services:
+  postgres:
+    # Use official MobilityDB Docker image
+    image: mobilitydb/mobilitydb:latest
+    container_name: vancouver_gtfs_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Valhalla service for map matching
+  valhalla:
+    image: ghcr.io/nilsnolde/docker-valhalla/valhalla:latest
+    container_name: valhalla_vancouver
+    ports:
+      - "8002:8002"
+    environment:
+      - tile_urls=https://download.geofabrik.de/north-america/canada/british-columbia-latest.osm.pbf
+    volumes:
+      - valhalla_data:/custom_files
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  valhalla_data:
+

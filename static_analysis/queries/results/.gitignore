@@ -1,9 +1,0 @@
-# Ignore all output files (they can be regenerated)
-*.png
-*.html
-
-# But keep the directory structure
-!.gitkeep
-!README.md
-!RESULTS_INDEX.md
-

@@ -12,16 +12,18 @@ fi
 
 echo "Creating database and extensions..."
 
-# Check if database exists by trying to connect to it
-if docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs -c "SELECT 1;" > /dev/null 2>&1; then
+# Check if database exists by querying pg_database
+DB_EXISTS=$(docker exec -i vancouver_gtfs_db psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='gtfs';" 2>/dev/null)
+if [ "$DB_EXISTS" = "1" ]; then
     echo "Database 'gtfs' already exists"
 else
     echo "Creating database 'gtfs'..."
-    docker exec -i vancouver_gtfs_db psql -U postgres -c "CREATE DATABASE gtfs;"
+    OUTPUT=$(docker exec -i vancouver_gtfs_db psql -U postgres -c "CREATE DATABASE gtfs;" 2>&1)
     if [ $? -eq 0 ]; then
         echo "✓ Database 'gtfs' created"
     else
         echo "✗ Error: Failed to create database"
+        echo "$OUTPUT"
         exit 1
     fi
 fi

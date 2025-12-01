@@ -33,3 +33,14 @@ Thumbs.db
 
 # Node modules
 node_modules/
+
+.context/
+.live_transit/
+
+realtime_analysis/queries/results/
+static_analysis/queries/results/
+
+*.png
+*.html
+
+*.txt

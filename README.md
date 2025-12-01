@@ -132,9 +132,8 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
 3. **Ingest GTFS-Realtime feeds**
    ```bash
    python -m realtime_analysis.ingest_realtime \
-     --route-short-name 99 \
      --duration-minutes 20 \
-     --poll-interval 15
+     --poll-interval 30
    ```
    Use the same route filters as the static study. Pass `--once` for a single snapshot.
 
@@ -145,7 +144,7 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
    Raw GPS points are deduplicated and snapped onto the scheduled shape before
    upserting into `realtime_trips_mdb`.
 
-5. **Compare schedule vs actual**
+5. **Compare schedule vs actual (single trip)**
    ```bash
    python -m realtime_analysis.analyze_realtime --route-short-name 99
    ```
@@ -154,6 +153,31 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
    - `speed_delta_map_<trip>.html`
    - `travel_time_<trip>.png`
    - `segment_metrics_<trip>.csv`
+
+6. **Run comprehensive realtime analyses**
+   ```bash
+   cd realtime_analysis/queries/analysis
+   # Run all analyses at once
+   python run_all_analyses.py
+   
+   # Or run individually:
+   python visualization/speed_vs_schedule_analysis.py    # Scheduled vs actual speeds
+   python visualization/schedule_times_analysis.py       # Scheduled vs actual times
+   python visualization/skipped_stops_analysis.py        # Stops not visited
+   python visualization/delay_segments_analysis.py       # Traffic/congestion patterns
+   ```
+   
+   **Analyses:**
+   - **Speed vs Schedule**: Compare planned velocities with actual observed speeds
+   - **Schedule Times**: Compare scheduled arrival/departure times with actual times  
+   - **Skipped Stops**: Identify stops where vehicles didn't stop as planned
+   - **Delay Segments**: Analyze traffic patterns - where and when delays occur
+   
+   **Outputs:**
+   - All results saved to `realtime_analysis/queries/results/` organized by analysis type
+   - Interactive HTML maps and charts (Plotly-based)
+   - CSV files with detailed metrics
+   - See `realtime_analysis/queries/results/README.md` for details
 
 ---
 
@@ -181,7 +205,16 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
 │   ├── ingest_realtime.py
 │   ├── build_realtime_trajectories.py
 │   ├── analyze_realtime.py
-│   └── utils.py
+│   ├── utils.py
+│   ├── queries/             # Realtime analysis queries
+│   │   ├── analysis/        # Analysis scripts
+│   │   │   ├── run_all_analyses.py
+│   │   │   └── visualization/
+│   │   │       ├── speed_vs_schedule_analysis.py
+│   │   │       ├── schedule_times_analysis.py
+│   │   │       ├── skipped_stops_analysis.py
+│   │   │       └── delay_segments_analysis.py
+│   │   └── results/         # Output files (HTML, CSV)
 ├── docker-compose.yml
 ├── setup_database.sh
 └── start_database.sh

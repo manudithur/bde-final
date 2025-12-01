@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Output directory (go up 3 levels: visualization/ -> analysis/ -> queries/ -> static_analysis/)
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'results', 'route_density')
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 # Database configuration
 DB_HOST = os.getenv("PGHOST", "localhost")
 DB_PORT = os.getenv("PGPORT", "5432")
@@ -44,9 +48,10 @@ def plot_histogram(num_routes_list):
     plt.title('Histogram of Number of Routes per Segment - Vancouver Transit')
     plt.grid(axis='y', alpha=0.5)
     plt.tight_layout()
-    plt.savefig('route_density_histogram.png', dpi=300, bbox_inches='tight')
-    print("Histogram saved as 'route_density_histogram.png'")
-    plt.show()
+    output_path = os.path.join(OUTPUT_DIR, 'route_density_histogram.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"Histogram saved as '{output_path}'")
+    plt.close()
 
 if __name__ == "__main__":
     print("Fetching route density data...")
@@ -55,6 +60,6 @@ if __name__ == "__main__":
     if num_routes_list:
         plot_histogram(num_routes_list)
     else:
-        print("No data found. Make sure you've run mobilitydb_import.sql and spatial_queries.sql")
+        print("No data found. Make sure you've run data_loading/mobilitydb_import.sql and queries/analysis/spatial_queries.sql")
 
 

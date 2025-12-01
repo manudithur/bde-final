@@ -73,21 +73,34 @@ docker-compose up -d
 3. **Load MobilityDB schema & derived tables**
    ```bash
    cd ../..
-   cat static_analysis/mobilitydb_import.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+   cat static_analysis/data_loading/mobilitydb_import.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
    ```
 
-4. **Run canned spatial queries**
+4. **Run analysis queries**
    ```bash
-   cat static_analysis/spatial_queries.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+   cat static_analysis/queries/analysis/spatial_queries.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
    ```
 
 5. **Generate static visualizations**
    ```bash
-   cd static_analysis
-   python route_density_analysis.py
-   python stadium_proximity_analysis.py
+   cd static_analysis/queries/analysis
+   # Run all analyses at once
+   python run_all_analyses.py
+   
+   # Or run individually:
+   python visualization/route_visualization.py          # Interactive route maps
+   python visualization/route_duplication_analysis.py   # Route duplication analysis
+   python visualization/speed_analysis.py               # Speed analysis
+   python visualization/route_density_analysis.py       # Route density
+   python visualization/stadium_proximity_analysis.py   # Stadium proximity
    ```
-   Outputs include `route_density_histogram.png` and `stadium_proximity_analysis.png`.
+   
+   **Outputs:**
+   - All results are saved to `static_analysis/queries/results/` organized by analysis type
+   - Interactive HTML maps: route maps, route duplication maps, stadium proximity maps
+   - Statistical charts: duplication heatmaps, speed distributions, route density histograms
+   - See `static_analysis/queries/results/README.md` for results organization
+   - See `static_analysis/queries/README.md` for query documentation
 
 6. **Inspect in GIS (optional)**
    - Install QGIS from https://qgis.org/
@@ -152,9 +165,17 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
 │   ├── data/                # GTFS download & preprocessing scripts
 │   │   ├── download_data.sh
 │   │   └── gtfs_pruned/
-│   ├── mobilitydb_import.sql
-│   ├── spatial_queries.sql
-│   └── *.py                 # Visualization scripts
+│   ├── data_loading/        # Database schema setup
+│   │   └── mobilitydb_import.sql
+│   ├── queries/             # Analysis queries and visualizations
+│   │   ├── analysis/        # Analysis queries
+│   │   │   ├── spatial_queries.sql
+│   │   │   └── visualization/  # Python scripts for visualizing queries
+│   │   ├── run_all_analyses.py  # Run all visualizations
+│   │   └── results/         # Output files (PNG, HTML)
+│   ├── utility/             # Utility scripts
+│   │   ├── check_data.sql
+│   │   └── fix_trips_shape_id.sql
 ├── realtime_analysis/       # Real-time ingestion & comparison
 │   ├── realtime_schema.sql
 │   ├── ingest_realtime.py
@@ -182,7 +203,7 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
 - **Missing tables:** Run the static GTFS import (steps 2–3) before MobilityDB scripts.
 - **`valid_shape_id` constraint errors:** Ensure `gtfs-to-sql` ran with `--trips-without-shape-id`. Otherwise run:
   ```bash
-  cat fix_trips_shape_id.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+  cat static_analysis/utility/fix_trips_shape_id.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
   ```
 - **MobilityDB extension unavailable:**
   ```bash

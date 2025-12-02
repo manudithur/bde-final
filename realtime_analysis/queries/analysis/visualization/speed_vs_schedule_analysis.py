@@ -40,82 +40,37 @@ def get_timestamp_suffix() -> str:
 def fetch_speed_comparison_data(conn) -> pd.DataFrame:
     """
     Fetch speed comparison between scheduled and actual for all available segments.
-    Joins realtime trip updates with static schedule data.
+    Uses materialized view for better performance.
     """
     query = """
-    WITH ranked_updates AS (
-        SELECT
-            rtu.trip_instance_id,
-            rtu.trip_id,
-            rtu.route_id,
-            rtu.start_date AS service_date,
-            rtu.stop_sequence,
-            rtu.stop_id,
-            rtu.arrival_time AS actual_arrival,
-            rtu.departure_time AS actual_departure,
-            rtu.arrival_delay_seconds,
-            rtu.departure_delay_seconds,
-            rtu.fetch_timestamp,
-            ROW_NUMBER() OVER (
-                PARTITION BY rtu.trip_instance_id, rtu.stop_sequence
-                ORDER BY rtu.fetch_timestamp DESC
-            ) AS rn
-        FROM rt_trip_updates rtu
-        WHERE rtu.arrival_time IS NOT NULL
-    ),
-    deduped AS (
-        SELECT * FROM ranked_updates WHERE rn = 1
-    ),
-    with_next_stop AS (
-        SELECT
-            d.trip_instance_id,
-            d.trip_id,
-            d.route_id,
-            d.service_date,
-            d.stop_sequence,
-            d.stop_id,
-            d.actual_arrival,
-            d.actual_departure,
-            d.arrival_delay_seconds,
-            LEAD(d.stop_sequence) OVER w AS next_stop_sequence,
-            LEAD(d.stop_id) OVER w AS next_stop_id,
-            LEAD(d.actual_arrival) OVER w AS next_actual_arrival
-        FROM deduped d
-        WINDOW w AS (PARTITION BY d.trip_instance_id ORDER BY d.stop_sequence)
-    )
     SELECT
-        w.trip_instance_id,
-        w.trip_id,
-        r.route_short_name,
-        r.route_long_name,
-        r.route_type,
-        w.route_id,
-        w.service_date,
-        w.stop_sequence,
-        w.next_stop_sequence,
-        w.stop_id,
-        w.next_stop_id,
-        s1.stop_name AS from_stop_name,
-        s2.stop_name AS to_stop_name,
-        rs.seg_length AS segment_length_m,
-        EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) AS scheduled_seconds,
-        EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)) AS actual_seconds,
-        w.arrival_delay_seconds,
-        EXTRACT(hour FROM w.actual_arrival) AS hour_of_day,
-        EXTRACT(dow FROM w.actual_arrival) AS day_of_week
-    FROM with_next_stop w
-    JOIN route_segments rs
-        ON rs.trip_id = w.trip_id
-        AND rs.stop1_sequence = w.stop_sequence
-    LEFT JOIN routes r ON r.route_id = w.route_id
-    LEFT JOIN stops s1 ON s1.stop_id = w.stop_id
-    LEFT JOIN stops s2 ON s2.stop_id = w.next_stop_id
-    WHERE w.next_actual_arrival IS NOT NULL
-      AND rs.seg_length > 10
-      AND EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) > 0
-      AND EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)) > 0
-      AND EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)) < 3600
-    ORDER BY w.trip_instance_id, w.stop_sequence;
+        trip_instance_id,
+        trip_id,
+        route_short_name,
+        route_long_name,
+        route_type,
+        route_id,
+        service_date,
+        stop_sequence,
+        next_stop_sequence,
+        stop_id,
+        next_stop_id,
+        from_stop_name,
+        to_stop_name,
+        segment_length_m,
+        scheduled_seconds,
+        actual_seconds,
+        arrival_delay_seconds,
+        hour_of_day,
+        day_of_week,
+        scheduled_speed_kmh,
+        actual_speed_kmh
+    FROM realtime_speed_comparison
+    WHERE scheduled_speed_kmh IS NOT NULL
+      AND actual_speed_kmh IS NOT NULL
+      AND scheduled_speed_kmh > 0 AND scheduled_speed_kmh < 150
+      AND actual_speed_kmh > 0 AND actual_speed_kmh < 150
+    ORDER BY trip_instance_id, stop_sequence;
     """
     
     df = pd.read_sql_query(query, conn)
@@ -123,15 +78,9 @@ def fetch_speed_comparison_data(conn) -> pd.DataFrame:
     if df.empty:
         return df
     
-    # Calculate speeds
-    df["scheduled_speed_kmh"] = (df["segment_length_m"] / df["scheduled_seconds"]) * 3.6
-    df["actual_speed_kmh"] = (df["segment_length_m"] / df["actual_seconds"]) * 3.6
+    # Calculate speed differences
     df["speed_delta_kmh"] = df["actual_speed_kmh"] - df["scheduled_speed_kmh"]
     df["speed_ratio"] = df["actual_speed_kmh"] / df["scheduled_speed_kmh"]
-    
-    # Filter outliers
-    df = df[(df["scheduled_speed_kmh"] > 0) & (df["scheduled_speed_kmh"] < 150)]
-    df = df[(df["actual_speed_kmh"] > 0) & (df["actual_speed_kmh"] < 150)]
     
     return df
 

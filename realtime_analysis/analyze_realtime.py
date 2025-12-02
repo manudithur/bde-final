@@ -452,7 +452,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="realtime_analysis/output",
+        default="realtime_analysis/queries/results/single_trip",
         help="Directory for generated artifacts.",
     )
     parser.add_argument(

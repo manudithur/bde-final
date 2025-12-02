@@ -95,12 +95,23 @@ docker-compose up -d
    python visualization/stadium_proximity_analysis.py   # Stadium proximity
    ```
    
+   **Visualization Scripts:**
+   - **route_visualization.py** - Creates interactive route maps (all routes, by mode, density heatmap)
+   - **route_duplication_analysis.py** - Analyzes and visualizes route duplication
+   - **route_density_analysis.py** - Creates route density histograms
+   - **speed_analysis.py** - Analyzes vehicle speeds and creates speed distribution charts
+   - **stadium_proximity_analysis.py** - Analyzes transit access near stadiums and landmarks
+   
    **Outputs:**
    - All results are saved to `static_analysis/queries/results/` organized by analysis type
    - Interactive HTML maps: route maps, route duplication maps, stadium proximity maps
    - Statistical charts: duplication heatmaps, speed distributions, route density histograms
-   - See `static_analysis/queries/results/README.md` for results organization
-   - See `static_analysis/queries/README.md` for query documentation
+   - See `static_analysis/queries/results/README.md` for list of generated result files
+   
+   **Requirements:**
+   - Database connection (configured via `.env` file)
+   - Python dependencies from `static_analysis/requirements.txt`
+   - Database must have `data_loading/mobilitydb_import.sql` and `queries/analysis/spatial_queries.sql` run
 
 6. **Inspect in GIS (optional)**
    - Install QGIS from https://qgis.org/
@@ -129,7 +140,13 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
    cat realtime_analysis/realtime_schema.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
    ```
 
-3. **Ingest GTFS-Realtime feeds**
+3. **Run realtime analysis queries (optional but recommended)**
+   ```bash
+   cat realtime_analysis/queries/analysis/realtime_queries.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+   ```
+   This creates materialized views for faster analysis queries. The visualization scripts will use these views if available, falling back to inline queries otherwise.
+
+4. **Ingest GTFS-Realtime feeds**
    ```bash
    python -m realtime_analysis.ingest_realtime \
      --duration-minutes 20 \
@@ -137,24 +154,24 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
    ```
    Use the same route filters as the static study. Pass `--once` for a single snapshot.
 
-4. **Build map-matched actual trajectories**
+5. **Build map-matched actual trajectories**
    ```bash
    python -m realtime_analysis.build_realtime_trajectories --hours 2 --route-short-name 99
    ```
    Raw GPS points are deduplicated and snapped onto the scheduled shape before
    upserting into `realtime_trips_mdb`.
 
-5. **Compare schedule vs actual (single trip)**
+6. **Compare schedule vs actual (single trip)**
    ```bash
    python -m realtime_analysis.analyze_realtime --route-short-name 99
    ```
-   Outputs written to `realtime_analysis/output/`:
+   Outputs written to `realtime_analysis/queries/results/single_trip/`:
    - `trajectory_<trip>.html`
    - `speed_delta_map_<trip>.html`
    - `travel_time_<trip>.png`
    - `segment_metrics_<trip>.csv`
 
-6. **Run comprehensive realtime analyses**
+7. **Run comprehensive realtime analyses**
    ```bash
    cd realtime_analysis/queries/analysis
    # Run all analyses at once
@@ -163,21 +180,27 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
    # Or run individually:
    python visualization/speed_vs_schedule_analysis.py    # Scheduled vs actual speeds
    python visualization/schedule_times_analysis.py       # Scheduled vs actual times
-   python visualization/skipped_stops_analysis.py        # Stops not visited
    python visualization/delay_segments_analysis.py       # Traffic/congestion patterns
+   python visualization/headway_analysis.py              # Bus bunching and headway analysis
    ```
    
-   **Analyses:**
-   - **Speed vs Schedule**: Compare planned velocities with actual observed speeds
-   - **Schedule Times**: Compare scheduled arrival/departure times with actual times  
-   - **Skipped Stops**: Identify stops where vehicles didn't stop as planned
-   - **Delay Segments**: Analyze traffic patterns - where and when delays occur
+   **Visualization Scripts:**
+   - **speed_vs_schedule_analysis.py** - Compares planned velocities with actual observed speeds
+   - **schedule_times_analysis.py** - Compares scheduled arrival/departure times with actual times
+   - **delay_segments_analysis.py** - Analyzes traffic patterns and congestion by time/location
+   - **headway_analysis.py** - Analyzes bus bunching and headway regularity
    
    **Outputs:**
    - All results saved to `realtime_analysis/queries/results/` organized by analysis type
    - Interactive HTML maps and charts (Plotly-based)
    - CSV files with detailed metrics
-   - See `realtime_analysis/queries/results/README.md` for details
+   - See `realtime_analysis/queries/results/README.md` for list of generated result files
+   
+   **Requirements:**
+   - Database connection (configured via `.env` file)
+   - Python dependencies from `realtime_analysis/requirements.txt`
+   - Realtime data ingested via `ingest_realtime.py`
+   - Static schedule loaded (required for comparisons)
 
 ---
 
@@ -192,11 +215,11 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
 │   ├── data_loading/        # Database schema setup
 │   │   └── mobilitydb_import.sql
 │   ├── queries/             # Analysis queries and visualizations
-│   │   ├── analysis/        # Analysis queries
-│   │   │   ├── spatial_queries.sql
+│   │   ├── analysis/        # Analysis queries and scripts
+│   │   │   ├── spatial_queries.sql  # SQL queries with materialized views
+│   │   │   ├── run_all_analyses.py  # Run all visualization scripts
 │   │   │   └── visualization/  # Python scripts for visualizing queries
-│   │   ├── run_all_analyses.py  # Run all visualizations
-│   │   └── results/         # Output files (PNG, HTML)
+│   │   └── results/         # Output files (PNG, HTML) - see results/README.md
 │   ├── utility/             # Utility scripts
 │   │   ├── check_data.sql
 │   │   └── fix_trips_shape_id.sql
@@ -207,14 +230,11 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
 │   ├── analyze_realtime.py
 │   ├── utils.py
 │   ├── queries/             # Realtime analysis queries
-│   │   ├── analysis/        # Analysis scripts
-│   │   │   ├── run_all_analyses.py
-│   │   │   └── visualization/
-│   │   │       ├── speed_vs_schedule_analysis.py
-│   │   │       ├── schedule_times_analysis.py
-│   │   │       ├── skipped_stops_analysis.py
-│   │   │       └── delay_segments_analysis.py
-│   │   └── results/         # Output files (HTML, CSV)
+│   │   ├── analysis/        # Analysis queries and scripts
+│   │   │   ├── realtime_queries.sql  # SQL queries with materialized views
+│   │   │   ├── run_all_analyses.py   # Run all visualization scripts
+│   │   │   └── visualization/  # Python scripts for visualizing queries
+│   │   └── results/         # Output files (HTML, CSV, PNG) - see results/README.md
 ├── docker-compose.yml
 ├── setup_database.sh
 └── start_database.sh
@@ -234,6 +254,7 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
   docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs -c "CREATE EXTENSION IF NOT EXISTS postgis;"
   ```
 - **Missing tables:** Run the static GTFS import (steps 2–3) before MobilityDB scripts.
+- **Realtime queries slow:** Run `realtime_queries.sql` to create materialized views for better performance.
 - **`valid_shape_id` constraint errors:** Ensure `gtfs-to-sql` ran with `--trips-without-shape-id`. Otherwise run:
   ```bash
   cat static_analysis/utility/fix_trips_shape_id.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs

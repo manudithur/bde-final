@@ -38,7 +38,7 @@ def get_db_connection():
 
 def fetch_stadium_transit_access():
     """Fetch stadium transit access metrics"""
-    query = """
+query = """
     SELECT 
         stadium_name,
         team,
@@ -52,8 +52,8 @@ def fetch_stadium_transit_access():
         nearest_stop_distance_m
     FROM stadium_transit_access
     ORDER BY trips_per_day DESC;
-    """
-    
+"""
+
     conn = get_db_connection()
     try:
         df = pd.read_sql_query(query, conn)
@@ -65,7 +65,7 @@ def fetch_stadium_transit_access():
         else:
             raise
     finally:
-        conn.close()
+    conn.close()
     return df
 
 def create_transit_access_comparison(df):

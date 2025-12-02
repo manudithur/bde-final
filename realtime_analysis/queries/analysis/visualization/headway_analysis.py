@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 
-# For interactive map
 import plotly.express as px
 
 # Add parent directories for imports
@@ -338,8 +337,8 @@ def plot_headway_by_time_period(df: pd.DataFrame, suffix: str) -> Path:
     return output_path
 
 
-def plot_bunching_map(df: pd.DataFrame, suffix: str) -> tuple:
-    """Create interactive map showing bunching hotspots + PNG snapshot."""
+def plot_bunching_map(df: pd.DataFrame, suffix: str):
+    """Create map showing bunching hotspots as PNG (sin HTML)."""
     stop_stats = df.groupby(["stop_id", "stop_name", "stop_lat", "stop_lon"]).agg({
         "headway_minutes": "mean",
         "headway_category": [
@@ -355,7 +354,7 @@ def plot_bunching_map(df: pd.DataFrame, suffix: str) -> tuple:
     stop_stats = stop_stats.dropna(subset=["lat", "lon"])
     
     if stop_stats.empty:
-        return None, None
+        return None
     
     fig = px.scatter_mapbox(
         stop_stats,
@@ -377,16 +376,17 @@ def plot_bunching_map(df: pd.DataFrame, suffix: str) -> tuple:
     
     fig.update_layout(
         mapbox_style="open-street-map",
-        mapbox_center={"lat": stop_stats["lat"].mean(), "lon": stop_stats["lon"].mean()},
+        mapbox_center={
+            "lat": stop_stats["lat"].mean(),
+            "lon": stop_stats["lon"].mean(),
+        },
         mapbox_zoom=11,
         height=700,
         width=1000,
-        margin=dict(l=0, r=0, t=50, b=0)
+        margin=dict(l=0, r=0, t=50, b=0),
     )
     
-    html_path = RESULTS_DIR / f"bunching_map_{suffix}.html"
-    fig.write_html(html_path)
-    
+    # Guardar solo PNG
     try:
         png_path = RESULTS_DIR / f"bunching_map_{suffix}.png"
         fig.write_image(png_path, scale=2)
@@ -394,7 +394,7 @@ def plot_bunching_map(df: pd.DataFrame, suffix: str) -> tuple:
         print(f"  ⚠ Could not save map PNG: {e}")
         png_path = None
     
-    return html_path, png_path
+    return png_path
 
 
 def generate_summary_csv(df: pd.DataFrame, suffix: str) -> Path:
@@ -498,9 +498,7 @@ def main():
     path = plot_headway_by_time_period(df, suffix)
     print(f"  ✓ Headway by time period: {path}")
     
-    html_path, png_path = plot_bunching_map(df, suffix)
-    if html_path:
-        print(f"  ✓ Bunching map (HTML): {html_path}")
+    png_path = plot_bunching_map(df, suffix)
     if png_path:
         print(f"  ✓ Bunching map (PNG): {png_path}")
     

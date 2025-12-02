@@ -16,7 +16,6 @@ import matplotlib
 matplotlib.use('Agg')
 import json
 
-# For interactive map
 import plotly.graph_objects as go
 
 # Add parent directories for imports
@@ -337,8 +336,8 @@ def plot_weekday_vs_weekend(df: pd.DataFrame, suffix: str) -> Path:
     return output_path
 
 
-def plot_delay_hotspots_map(df: pd.DataFrame, suffix: str) -> tuple:
-    """Create interactive map showing delay hotspots + PNG snapshot."""
+def plot_delay_hotspots_map(df: pd.DataFrame, suffix: str):
+    """Create map showing delay hotspots as PNG (sin HTML)."""
     segment_stats = df.groupby(
         ["from_stop_id", "to_stop_id", "from_stop_name", "to_stop_name",
          "from_lat", "from_lon", "to_lat", "to_lon"]
@@ -356,7 +355,7 @@ def plot_delay_hotspots_map(df: pd.DataFrame, suffix: str) -> tuple:
     delayed = delayed.dropna(subset=["from_lat", "from_lon", "to_lat", "to_lon"])
     
     if delayed.empty:
-        return None, None
+        return None
     
     fig = go.Figure()
     
@@ -397,19 +396,17 @@ def plot_delay_hotspots_map(df: pd.DataFrame, suffix: str) -> tuple:
         title="Delay Hotspots Map (segments with >1 min avg delay)",
         mapbox_style="open-street-map",
         mapbox_center={
-            "lat": delayed["from_lat"].mean(), 
-            "lon": delayed["from_lon"].mean()
+            "lat": delayed["from_lat"].mean(),
+            "lon": delayed["from_lon"].mean(),
         },
         mapbox_zoom=11,
         height=700,
         width=1000,
         margin=dict(l=0, r=0, t=50, b=0),
-        showlegend=False
+        showlegend=False,
     )
     
-    html_path = RESULTS_DIR / f"delay_hotspots_map_{suffix}.html"
-    fig.write_html(html_path)
-    
+    # Guardar solo PNG
     try:
         png_path = RESULTS_DIR / f"delay_hotspots_map_{suffix}.png"
         fig.write_image(png_path, scale=2)
@@ -417,7 +414,7 @@ def plot_delay_hotspots_map(df: pd.DataFrame, suffix: str) -> tuple:
         print(f"  ⚠ Could not save map PNG: {e}")
         png_path = None
     
-    return html_path, png_path
+    return png_path
 
 
 def generate_summary_csv(df: pd.DataFrame, suffix: str) -> Path:
@@ -519,9 +516,7 @@ def main():
     path = plot_weekday_vs_weekend(df, suffix)
     print(f"  ✓ Weekday vs weekend: {path}")
     
-    html_path, png_path = plot_delay_hotspots_map(df, suffix)
-    if html_path:
-        print(f"  ✓ Hotspots map (HTML): {html_path}")
+    png_path = plot_delay_hotspots_map(df, suffix)
     if png_path:
         print(f"  ✓ Hotspots map (PNG): {png_path}")
     

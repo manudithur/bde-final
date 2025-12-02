@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 
-# For interactive map
 import plotly.express as px
 
 # Add parent directories for imports
@@ -291,8 +290,8 @@ def plot_on_time_performance(df: pd.DataFrame, suffix: str) -> Path:
     return output_path
 
 
-def plot_delay_map(df: pd.DataFrame, suffix: str) -> tuple:
-    """Create interactive map of average delay at each stop + PNG snapshot."""
+def plot_delay_map(df: pd.DataFrame, suffix: str):
+    """Create map of average delay at each stop as PNG (sin HTML)."""
     stop_delays = df.groupby(["stop_id", "stop_name", "stop_lat", "stop_lon"]).agg({
         "delay_minutes": ["mean", "std", "count"]
     }).reset_index()
@@ -301,9 +300,9 @@ def plot_delay_map(df: pd.DataFrame, suffix: str) -> tuple:
     stop_delays = stop_delays.dropna(subset=["lat", "lon"])
     
     if stop_delays.empty:
-        return None, None
+        return None
     
-    # Interactive HTML map
+    # Interactive map (solo para generar imagen estática PNG)
     fig = px.scatter_mapbox(
         stop_delays,
         lat="lat",
@@ -320,17 +319,17 @@ def plot_delay_map(df: pd.DataFrame, suffix: str) -> tuple:
     
     fig.update_layout(
         mapbox_style="open-street-map",
-        mapbox_center={"lat": stop_delays["lat"].mean(), "lon": stop_delays["lon"].mean()},
+        mapbox_center={
+            "lat": stop_delays["lat"].mean(),
+            "lon": stop_delays["lon"].mean(),
+        },
         mapbox_zoom=11,
         height=700,
         width=1000,
-        margin=dict(l=0, r=0, t=50, b=0)
+        margin=dict(l=0, r=0, t=50, b=0),
     )
     
-    html_path = RESULTS_DIR / f"delay_map_{suffix}.html"
-    fig.write_html(html_path)
-    
-    # PNG snapshot
+    # PNG snapshot únicamente
     try:
         png_path = RESULTS_DIR / f"delay_map_{suffix}.png"
         fig.write_image(png_path, scale=2)
@@ -338,7 +337,7 @@ def plot_delay_map(df: pd.DataFrame, suffix: str) -> tuple:
         print(f"  ⚠ Could not save map PNG (install kaleido): {e}")
         png_path = None
     
-    return html_path, png_path
+    return png_path
 
 
 def generate_summary_csv(df: pd.DataFrame, suffix: str) -> Path:
@@ -434,9 +433,7 @@ def main():
     path = plot_on_time_performance(df, suffix)
     print(f"  ✓ On-time performance: {path}")
     
-    html_path, png_path = plot_delay_map(df, suffix)
-    if html_path:
-        print(f"  ✓ Delay map (HTML): {html_path}")
+    png_path = plot_delay_map(df, suffix)
     if png_path:
         print(f"  ✓ Delay map (PNG): {png_path}")
     

@@ -36,9 +36,9 @@ results/
 ## Analysis Descriptions
 
 ### Route Visualization
-- **route_map_all.html**: All routes on a single map, color-coded by transport mode
-- **route_map_by_mode.html**: Routes grouped by mode with layer controls
-- **route_density_heatmap.html**: Heatmap showing route density across the city
+- **route_map_all.png**: All routes on a single map, color-coded by transport mode
+- **route_map_by_mode.png**: Routes grouped by mode in separate panels
+- **route_density_heatmap.png**: Heatmap-style map showing route density across the city
 
 ### Route Duplication
 - **route_duplication_heatmap.png**: Heatmap showing overlap percentages between routes
@@ -56,5 +56,6 @@ results/
 
 ## Notes
 
-- All HTML maps require an internet connection to load base map tiles
+- All visualizations are generated como imágenes PNG de alta resolución (300 DPI),
+  listas para ser incluidas en informes.
 

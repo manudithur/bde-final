@@ -41,72 +41,40 @@ def get_timestamp_suffix() -> str:
 
 
 def fetch_schedule_times_data(conn) -> pd.DataFrame:
-    """Fetch arrival/departure time comparison between scheduled and actual."""
+    """Fetch arrival/departure time comparison between scheduled and actual.
+    Uses materialized view for better performance.
+    """
     query = """
-    WITH ranked_updates AS (
-        SELECT
-            rtu.trip_instance_id,
-            rtu.trip_id,
-            rtu.route_id,
-            rtu.start_date AS service_date,
-            rtu.stop_sequence,
-            rtu.stop_id,
-            rtu.arrival_time AS actual_arrival,
-            rtu.departure_time AS actual_departure,
-            rtu.arrival_delay_seconds,
-            rtu.departure_delay_seconds,
-            rtu.fetch_timestamp,
-            ROW_NUMBER() OVER (
-                PARTITION BY rtu.trip_instance_id, rtu.stop_sequence
-                ORDER BY rtu.fetch_timestamp DESC
-            ) AS rn
-        FROM rt_trip_updates rtu
-        WHERE rtu.arrival_time IS NOT NULL
-          AND rtu.stop_id IS NOT NULL
-    ),
-    deduped AS (
-        SELECT * FROM ranked_updates WHERE rn = 1
-    )
     SELECT
-        d.trip_instance_id,
-        d.trip_id,
-        r.route_short_name,
-        r.route_long_name,
-        r.route_type,
-        d.route_id,
-        d.service_date,
-        d.stop_sequence,
-        d.stop_id,
-        s.stop_name,
-        ST_Y(s.stop_loc::geometry) AS stop_lat,
-        ST_X(s.stop_loc::geometry) AS stop_lon,
-        ts.arrival_time AS scheduled_arrival_interval,
-        d.actual_arrival,
-        d.actual_departure,
-        d.arrival_delay_seconds,
-        d.departure_delay_seconds,
-        EXTRACT(hour FROM d.actual_arrival) AS hour_of_day,
-        EXTRACT(dow FROM d.actual_arrival) AS day_of_week,
-        CASE 
-            WHEN EXTRACT(dow FROM d.actual_arrival) IN (0, 6) THEN 'Weekend'
-            ELSE 'Weekday'
-        END AS day_type
-    FROM deduped d
-    JOIN routes r ON r.route_id = d.route_id
-    LEFT JOIN stops s ON s.stop_id = d.stop_id
-    LEFT JOIN transit_stops ts 
-        ON ts.trip_id = d.trip_id 
-        AND ts.stop_sequence = d.stop_sequence
-    WHERE d.arrival_delay_seconds IS NOT NULL
-    ORDER BY d.trip_instance_id, d.stop_sequence;
+        trip_instance_id,
+        trip_id,
+        route_short_name,
+        route_long_name,
+        route_type,
+        route_id,
+        service_date,
+        stop_sequence,
+        stop_id,
+        stop_name,
+        stop_lat,
+        stop_lon,
+        scheduled_arrival_interval,
+        actual_arrival,
+        actual_departure,
+        arrival_delay_seconds,
+        departure_delay_seconds,
+        delay_minutes,
+        hour_of_day,
+        day_of_week,
+        day_type
+    FROM realtime_schedule_times
+    ORDER BY trip_instance_id, stop_sequence;
     """
     
     df = pd.read_sql_query(query, conn)
     
     if df.empty:
         return df
-    
-    df["delay_minutes"] = df["arrival_delay_seconds"] / 60.0
     
     df["delay_category"] = pd.cut(
         df["delay_minutes"],

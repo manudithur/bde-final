@@ -171,62 +171,62 @@ def plot_speed_distribution(df_speeds, df_stats=None):
         ax.grid(axis='y', alpha=0.5)
     else:
         # Multiple plots - use 2x2 grid and hide unused subplots
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-        
-        # 1. Histogram of all speeds
-        axes[0, 0].hist(df_speeds['speed_kmh'], bins=50, color='#3794eb', edgecolor='black', alpha=0.7)
-        axes[0, 0].axvline(df_speeds['speed_kmh'].mean(), color='red', linestyle='--', 
-                          linewidth=2, label=f"Mean: {df_speeds['speed_kmh'].mean():.1f} km/h")
-        axes[0, 0].axvline(df_speeds['speed_kmh'].median(), color='green', linestyle='--', 
-                          linewidth=2, label=f"Median: {df_speeds['speed_kmh'].median():.1f} km/h")
-        axes[0, 0].set_xlabel('Speed (km/h)')
-        axes[0, 0].set_ylabel('Frequency')
-        axes[0, 0].set_title('Distribution of Segment Speeds')
-        axes[0, 0].legend()
-        axes[0, 0].grid(axis='y', alpha=0.5)
-        
-        # 2. Box plot by route type
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    
+    # 1. Histogram of all speeds
+    axes[0, 0].hist(df_speeds['speed_kmh'], bins=50, color='#3794eb', edgecolor='black', alpha=0.7)
+    axes[0, 0].axvline(df_speeds['speed_kmh'].mean(), color='red', linestyle='--', 
+                      linewidth=2, label=f"Mean: {df_speeds['speed_kmh'].mean():.1f} km/h")
+    axes[0, 0].axvline(df_speeds['speed_kmh'].median(), color='green', linestyle='--', 
+                      linewidth=2, label=f"Median: {df_speeds['speed_kmh'].median():.1f} km/h")
+    axes[0, 0].set_xlabel('Speed (km/h)')
+    axes[0, 0].set_ylabel('Frequency')
+    axes[0, 0].set_title('Distribution of Segment Speeds')
+    axes[0, 0].legend()
+    axes[0, 0].grid(axis='y', alpha=0.5)
+    
+    # 2. Box plot by route type
         if has_box_plot:
-            data_to_plot = []
-            labels = []
-            if not bus_speeds.empty:
-                data_to_plot.append(bus_speeds)
-                labels.append('Bus')
-            if not subway_speeds.empty:
-                data_to_plot.append(subway_speeds)
-                labels.append('Subway')
-            if not rail_speeds.empty:
-                data_to_plot.append(rail_speeds)
-                labels.append('Rail')
-            
+        data_to_plot = []
+        labels = []
+        if not bus_speeds.empty:
+            data_to_plot.append(bus_speeds)
+            labels.append('Bus')
+        if not subway_speeds.empty:
+            data_to_plot.append(subway_speeds)
+            labels.append('Subway')
+        if not rail_speeds.empty:
+            data_to_plot.append(rail_speeds)
+            labels.append('Rail')
+        
             axes[0, 1].boxplot(data_to_plot, labels=labels)
             axes[0, 1].set_ylabel('Average Speed (km/h)')
             axes[0, 1].set_title('Speed Distribution by Transport Mode')
             axes[0, 1].grid(axis='y', alpha=0.5)
         else:
             axes[0, 1].axis('off')
-        
-        # 3. Top routes by average speed
+    
+    # 3. Top routes by average speed
         if has_top_routes:
-            top_routes = df_stats.head(20)
-            axes[1, 0].barh(range(len(top_routes)), top_routes['avg_speed_kmh'], color='#cc0000')
-            axes[1, 0].set_yticks(range(len(top_routes)))
-            axes[1, 0].set_yticklabels([f"{row['route_short_name'] or row['route_id']}" 
-                                         for _, row in top_routes.iterrows()], fontsize=8)
-            axes[1, 0].set_xlabel('Average Speed (km/h)')
-            axes[1, 0].set_title('Top 20 Routes by Average Speed')
-            axes[1, 0].grid(axis='x', alpha=0.5)
+        top_routes = df_stats.head(20)
+        axes[1, 0].barh(range(len(top_routes)), top_routes['avg_speed_kmh'], color='#cc0000')
+        axes[1, 0].set_yticks(range(len(top_routes)))
+        axes[1, 0].set_yticklabels([f"{row['route_short_name'] or row['route_id']}" 
+                                     for _, row in top_routes.iterrows()], fontsize=8)
+        axes[1, 0].set_xlabel('Average Speed (km/h)')
+        axes[1, 0].set_title('Top 20 Routes by Average Speed')
+        axes[1, 0].grid(axis='x', alpha=0.5)
         else:
             axes[1, 0].axis('off')
-        
-        # 4. Speed vs number of segments
+    
+    # 4. Speed vs number of segments
         if has_scatter:
-            axes[1, 1].scatter(df_stats['num_segments'], df_stats['avg_speed_kmh'], 
-                              alpha=0.5, color='#0066cc', s=50)
-            axes[1, 1].set_xlabel('Number of Segments')
-            axes[1, 1].set_ylabel('Average Speed (km/h)')
-            axes[1, 1].set_title('Speed vs Route Length (Number of Segments)')
-            axes[1, 1].grid(alpha=0.5)
+        axes[1, 1].scatter(df_stats['num_segments'], df_stats['avg_speed_kmh'], 
+                          alpha=0.5, color='#0066cc', s=50)
+        axes[1, 1].set_xlabel('Number of Segments')
+        axes[1, 1].set_ylabel('Average Speed (km/h)')
+        axes[1, 1].set_title('Speed vs Route Length (Number of Segments)')
+        axes[1, 1].grid(alpha=0.5)
         else:
             axes[1, 1].axis('off')
     

@@ -45,52 +45,9 @@ def fetch_headway_data(conn) -> pd.DataFrame:
     """
     Fetch vehicle arrival data at stops to calculate headways.
     Headway = time between consecutive vehicles at the same stop on the same route.
+    Uses materialized view for better performance.
     """
     query = """
-    WITH stop_arrivals AS (
-        SELECT
-            rtu.route_id,
-            r.route_short_name,
-            r.route_long_name,
-            rtu.stop_id,
-            s.stop_name,
-            ST_Y(s.stop_loc::geometry) AS stop_lat,
-            ST_X(s.stop_loc::geometry) AS stop_lon,
-            rtu.trip_instance_id,
-            rtu.trip_id,
-            rtu.arrival_time,
-            EXTRACT(hour FROM rtu.arrival_time) AS hour_of_day,
-            EXTRACT(dow FROM rtu.arrival_time) AS day_of_week,
-            CASE 
-                WHEN EXTRACT(dow FROM rtu.arrival_time) IN (0, 6) THEN 'Weekend'
-                ELSE 'Weekday'
-            END AS day_type,
-            CASE
-                WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 7 AND 9 THEN 'Morning Rush'
-                WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 16 AND 18 THEN 'Evening Rush'
-                WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 9 AND 16 THEN 'Midday'
-                WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 18 AND 22 THEN 'Evening'
-                ELSE 'Night'
-            END AS time_period
-        FROM rt_trip_updates rtu
-        JOIN routes r ON r.route_id = rtu.route_id
-        LEFT JOIN stops s ON s.stop_id = rtu.stop_id
-        WHERE rtu.arrival_time IS NOT NULL
-          AND rtu.stop_id IS NOT NULL
-    ),
-    with_prev AS (
-        SELECT
-            *,
-            LAG(arrival_time) OVER (
-                PARTITION BY route_id, stop_id
-                ORDER BY arrival_time
-            ) AS prev_arrival,
-            LAG(trip_instance_id) OVER (
-                PARTITION BY route_id, stop_id
-                ORDER BY arrival_time
-            ) AS prev_trip_instance_id
-        FROM stop_arrivals
-    )
     SELECT
         route_id,
         route_short_name,
@@ -103,16 +60,12 @@ def fetch_headway_data(conn) -> pd.DataFrame:
         prev_trip_instance_id,
         arrival_time,
         prev_arrival,
-        EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) / 60.0 AS headway_minutes,
+        headway_minutes,
         hour_of_day,
         day_of_week,
         day_type,
         time_period
-    FROM with_prev
-    WHERE prev_arrival IS NOT NULL
-      AND trip_instance_id != prev_trip_instance_id
-      AND EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) > 0
-      AND EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) < 7200  -- Max 2 hours
+    FROM realtime_headway_stats
     ORDER BY route_short_name, stop_id, arrival_time;
     """
     

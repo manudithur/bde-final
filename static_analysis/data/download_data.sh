@@ -97,4 +97,4 @@ fi
 echo ""
 echo "✅ Data processing pipeline completed successfully!"
 echo "Processed GTFS files are available in gtfs_pruned/ directory"
-echo "You can now run: import_gtfs.sh (requires database setup)"
+ 

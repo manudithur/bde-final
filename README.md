@@ -4,59 +4,60 @@ Spatial database analysis of Vancouver transit data with both scheduled GTFS and
 
 ---
 
-## Setup
+## Prerequisites
 
-### Install Dependencies
+Before running any commands, ensure the following are in place:
+
+### Database Requirements
+- **PostgreSQL database** named `gtfs` must already exist and be running
+- **PostGIS extension** must be installed and enabled on the database
+- **MobilityDB extension** must be installed and enabled on the database
+- Database connection accessible (credentials via exported environment variables)
+
+### Database Connection Configuration
+Export database connection variables in your terminal. These are required for shell commands (like `psql`) and will also be used by Python scripts:
+
+```bash
+export PGHOST=localhost
+export PGPORT=5432
+export PGUSER=postgres
+export PGPASSWORD=postgres
+export PGDATABASE=gtfs
+```
+
+To make these persistent across terminal sessions, add them to your shell profile (e.g., `~/.bashrc`, `~/.zshrc`).
+
+**Important:** Shell commands (like `psql`) require exported environment variables. You must export these variables in your terminal. Optionally, you can also create a `.env` file for Python scripts to load automatically via `load_dotenv()`, but exported variables are still required for shell commands.
+
+**Default values (if not set):**
+- `PGHOST=localhost`
+- `PGPORT=5432`
+- `PGUSER=postgres`
+- `PGPASSWORD=postgres`
+- `PGDATABASE=gtfs`
+
+### Python Dependencies
 ```bash
 pip install -r requirements.txt
 pip install -r static_analysis/requirements.txt
 pip install -r realtime_analysis/requirements.txt
-npm install -g gtfs-via-postgres
 ```
 
-### Configure Environment
-Create a `.env` file in the repo root:
+### External Tools
+- `gtfs-to-sql` (install via npm): `npm install -g gtfs-via-postgres`
+
+### Database Connection
+You can test your connection with:
 ```bash
-PGHOST=localhost
-PGPORT=5432
-PGUSER=postgres
-PGPASSWORD=postgres
-PGDATABASE=gtfs
+psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -c "SELECT PostGIS_version(), MobilityDB_version();"
 ```
-
-### Start the Database
-```bash
-# Linux/WSL
-chmod +x start_database.sh setup_database.sh check_mobilitydb.sh
-./start_database.sh
-
-# Or manually
-docker-compose up -d
-./setup_database.sh
-```
-If you switch PostGIS images, reset the volumes first:
-```bash
-docker-compose down -v
-docker-compose up -d
-./setup_database.sh
-```
-
-### Useful Database Commands
-```bash
-# Connect
-docker exec -it vancouver_gtfs_db psql -U postgres -d gtfs
-
-# Run arbitrary SQL
-cat file.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
-
-# Restart services
-docker-compose down
-docker-compose up -d
-```
+This should return version numbers for both extensions if they're properly installed.
 
 ---
 
 ## GTFS Static Workflow
+
+**Prerequisites:** Database `gtfs` must exist with PostGIS and MobilityDB extensions enabled.
 
 1. **Download & preprocess schedule data**
    ```bash
@@ -67,19 +68,22 @@ docker-compose up -d
 2. **Import GTFS tables**
    ```bash
    cd static_analysis/data/gtfs_pruned
-   gtfs-to-sql --require-dependencies -- *.txt | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+   gtfs-to-sql --require-dependencies -- *.txt | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
    ```
+   Requires: Database `gtfs` with PostGIS extension enabled
 
 3. **Load MobilityDB schema & derived tables**
    ```bash
-   cd ../..
-   cat static_analysis/data_loading/mobilitydb_import.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+   cd ../../..
+   cat static_analysis/data_loading/mobilitydb_import.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
    ```
+   Requires: MobilityDB extension enabled, GTFS tables from step 2
 
 4. **Run analysis queries**
    ```bash
-   cat static_analysis/queries/analysis/spatial_queries.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+   cat static_analysis/queries/analysis/spatial_queries.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
    ```
+   Requires: `scheduled_trips_mdb` and other MobilityDB tables from step 3
 
 5. **Generate static visualizations**
    ```bash
@@ -109,25 +113,27 @@ docker-compose up -d
    - See `static_analysis/queries/results/README.md` for list of generated result files
    
    **Requirements:**
-   - Database connection (configured via `.env` file)
+   - Database connection (via environment variables: `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`)
    - Python dependencies from `static_analysis/requirements.txt`
-   - Database must have `data_loading/mobilitydb_import.sql` and `queries/analysis/spatial_queries.sql` run
+   - Materialized views from `spatial_queries.sql` (step 4 of static workflow)
 
 6. **Inspect in GIS (optional)**
    - Install QGIS from https://qgis.org/
    - Layer → Add Layer → Add PostGIS Layer
-   - Connection: Host `localhost`, Port `5432`, DB `gtfs`, User `postgres`, Password `postgres`
+   - Connection: Use your database credentials (Host, Port, DB `gtfs`, User, Password from environment variables)
    - Load tables such as `stops`, `route_segments`, `scheduled_trips_mdb`
 
 ---
 
 ## GTFS Realtime Workflow
 
-Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for the same routes analyzed above.
+**Prerequisites:** 
+- Database `gtfs` with PostGIS and MobilityDB extensions enabled
+- Static GTFS data loaded (from Static Workflow steps 1-3)
+- API key for TransLink GTFS-Realtime feeds
 
-1. **Install extras & set API key**
+1. **Set API key**
    ```bash
-   pip install -r realtime_analysis/requirements.txt
    export TRANSLINK_GTFSR_API_KEY="your-translink-api-key"
    # Default endpoints:
    #   Positions: https://gtfsapi.translink.ca/v3/gtfsposition
@@ -137,39 +143,34 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
 
 2. **Create realtime tables**
    ```bash
-   cat realtime_analysis/realtime_schema.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+   cat realtime_analysis/realtime_schema.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
    ```
+   Requires: Database `gtfs` with PostGIS and MobilityDB extensions enabled
 
-3. **Run realtime analysis queries (optional but recommended)**
-   ```bash
-   cat realtime_analysis/queries/analysis/realtime_queries.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
-   ```
-   This creates materialized views for faster analysis queries. The visualization scripts will use these views if available, falling back to inline queries otherwise.
-
-4. **Ingest GTFS-Realtime feeds**
+3. **Ingest GTFS-Realtime feeds**
    ```bash
    python -m realtime_analysis.ingest_realtime \
      --duration-minutes 20 \
      --poll-interval 30
    ```
+   Requires: Realtime tables from step 2, TRANSLINK_GTFSR_API_KEY environment variable
    Use the same route filters as the static study. Pass `--once` for a single snapshot.
 
-5. **Build map-matched actual trajectories**
+4. **Build map-matched actual trajectories**
    ```bash
-   python -m realtime_analysis.build_realtime_trajectories --hours 2 --route-short-name 99
+   python -m realtime_analysis.build_realtime_trajectories --hours 2
    ```
+   Limit to processing data until --hours behind
+   Requires: Realtime vehicle positions from step 3, scheduled_trips_mdb from static workflow
    Raw GPS points are deduplicated and snapped onto the scheduled shape before
    upserting into `realtime_trips_mdb`.
 
-6. **Compare schedule vs actual (single trip)**
+5. **Run realtime analysis queries**
    ```bash
-   python -m realtime_analysis.analyze_realtime --route-short-name 99
+   cat realtime_analysis/queries/analysis/realtime_queries.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
    ```
-   Outputs written to `realtime_analysis/queries/results/single_trip/`:
-   - `trajectory_<trip>.html`
-   - `speed_delta_map_<trip>.html`
-   - `travel_time_<trip>.png`
-   - `segment_metrics_<trip>.csv`
+   Requires: Realtime data in `rt_trip_updates` table from step 3, `realtime_trips_mdb` from step 4, static `route_segments` table from static workflow
+   This creates materialized views for faster analysis queries. The visualization scripts will use these views if available, falling back to inline queries otherwise.
 
 7. **Run comprehensive realtime analyses**
    ```bash
@@ -197,10 +198,11 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
    - See `realtime_analysis/queries/results/README.md` for list of generated result files
    
    **Requirements:**
-   - Database connection (configured via `.env` file)
+   - Database connection (via environment variables: `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`)
    - Python dependencies from `realtime_analysis/requirements.txt`
-   - Realtime data ingested via `ingest_realtime.py`
-   - Static schedule loaded (required for comparisons)
+   - Realtime trip updates in `rt_trip_updates` table (from step 3)
+   - Static schedule tables: `route_segments`, `stops`, `routes` (from static workflow)
+   - Materialized views from step 4 recommended for performance
 
 ---
 
@@ -235,35 +237,20 @@ Use the `realtime_analysis` package to capture TransLink GTFS-Realtime feeds for
 │   │   │   ├── run_all_analyses.py   # Run all visualization scripts
 │   │   │   └── visualization/  # Python scripts for visualizing queries
 │   │   └── results/         # Output files (HTML, CSV, PNG) - see results/README.md
-├── docker-compose.yml
-├── setup_database.sh
-└── start_database.sh
 ```
 
 ---
 
 ## Troubleshooting
 
-- **Line ending errors (Linux/WSL):**
+- **Database connection errors:** Verify your environment variables are set correctly and the database is running. Test with:
   ```bash
-  find . -name "*.sh" -exec sed -i 's/\r$//' {} \; -exec chmod +x {} \;
+  psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -c "SELECT version();"
   ```
-- **Database missing:**
+
+- **PostGIS/MobilityDB extensions missing:** These must be installed on your PostgreSQL instance before running any commands. Verify with:
   ```bash
-  docker exec -i vancouver_gtfs_db psql -U postgres -c "CREATE DATABASE gtfs;"
-  docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+  psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE -c "SELECT PostGIS_version(), MobilityDB_version();"
   ```
-- **Missing tables:** Run the static GTFS import (steps 2–3) before MobilityDB scripts.
-- **Realtime queries slow:** Run `realtime_queries.sql` to create materialized views for better performance.
-- **`valid_shape_id` constraint errors:** Ensure `gtfs-to-sql` ran with `--trips-without-shape-id`. Otherwise run:
-  ```bash
-  cat static_analysis/utility/fix_trips_shape_id.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
-  ```
-- **MobilityDB extension unavailable:**
-  ```bash
-  docker-compose down -v
-  docker-compose up -d
-  chmod +x check_mobilitydb.sh
-  ./check_mobilitydb.sh
-  docker logs vancouver_gtfs_db
-  ```
+
+- **Missing tables:** Ensure you've run all workflow steps in order. Static workflow steps 2-4 must complete before realtime workflow.

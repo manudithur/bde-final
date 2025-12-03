@@ -64,11 +64,11 @@ def fetch_route_data_gdf() -> gpd.GeoDataFrame:
     WHERE route_geometry IS NOT NULL
     ORDER BY num_trips DESC;
     """
-
+    
     conn = get_db_connection()
     df = pd.read_sql_query(query, conn)
     conn.close()
-
+    
     if df.empty:
         return gpd.GeoDataFrame(columns=["route_id", "geometry"], geometry="geometry")
 
@@ -107,17 +107,17 @@ def fetch_route_density_gdf() -> gpd.GeoDataFrame:
     """Fetch route density (segment_route_density) as GeoDataFrame."""
     query = """
     SELECT 
-        stop1_id || stop2_id AS segment_id,
+        segment_id,
         num_routes,
         seg_geom
     FROM segment_route_density
     WHERE seg_geom IS NOT NULL;
     """
-
+    
     conn = get_db_connection()
     gdf = gpd.read_postgis(query, conn, geom_col="seg_geom")
     conn.close()
-
+    
     if gdf.empty:
         return gpd.GeoDataFrame(columns=["segment_id", "seg_geom"], geometry="seg_geom")
 
@@ -136,7 +136,7 @@ def plot_all_routes(gdf: gpd.GeoDataFrame) -> str:
 
     modes = sorted(gdf["mode_name"].dropna().unique().tolist())
     cmap = plt.get_cmap("tab10")
-
+        
     for i, mode in enumerate(modes):
         subset = gdf[gdf["mode_name"] == mode]
         if subset.empty:
@@ -144,7 +144,7 @@ def plot_all_routes(gdf: gpd.GeoDataFrame) -> str:
         color = cmap(i % 10)
         subset.plot(
             ax=ax,
-            color=color,
+                            color=color,
             linewidth=0.8,
             alpha=0.8,
             label=f"{mode} ({len(subset)} rutas)",
@@ -251,13 +251,13 @@ def main():
     print("Fetching route data...")
     routes_gdf = fetch_route_data_gdf()
     print(f"Found {len(routes_gdf)} routes")
-
+    
     if routes_gdf.empty:
         print("No route data found. Make sure you've run:")
         print("  1. data_loading/mobilitydb_import.sql")
         print("  2. queries/analysis/spatial_queries.sql")
         return
-
+    
     print("Generating static route maps (PNG)...")
     plot_all_routes(routes_gdf)
     plot_routes_by_mode(routes_gdf)
@@ -267,7 +267,7 @@ def main():
     print(f"Found {len(density_gdf)} segments for density analysis")
     if not density_gdf.empty:
         plot_route_density(density_gdf)
-
+    
     print("\nAll PNG visualizations created successfully!")
 
 

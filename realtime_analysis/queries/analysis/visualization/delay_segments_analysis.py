@@ -431,7 +431,9 @@ def main():
         print("   Make sure you have:")
         print("   1. Run the realtime ingestion (ingest_realtime.py)")
         print("   2. Static schedule loaded (route_segments table)")
-        print("   3. Trip updates with arrival times")
+        print("   3. Run realtime_queries.sql to create materialized views:")
+        print("      cat realtime_analysis/queries/analysis/realtime_queries.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE")
+        print("   4. Trip updates with arrival times")
         return 1
     
     print(f"✓ Retrieved {len(df):,} segment delay observations")

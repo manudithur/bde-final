@@ -371,7 +371,9 @@ def main():
         print("⚠️  No schedule times data found.")
         print("   Make sure you have:")
         print("   1. Run the realtime ingestion (ingest_realtime.py)")
-        print("   2. Trip updates with arrival_delay_seconds are available")
+        print("   2. Run realtime_queries.sql to create materialized views:")
+        print("      cat realtime_analysis/queries/analysis/realtime_queries.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE")
+        print("   3. Trip updates with arrival_delay_seconds are available")
         return 1
     
     print(f"✓ Retrieved {len(df):,} schedule time observations")

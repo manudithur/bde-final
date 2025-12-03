@@ -1,6 +1,7 @@
 -- Realtime Analysis Queries for Vancouver GTFS Realtime Data
 -- Materialized views for common realtime analysis patterns
--- Run with: cat realtime_analysis/queries/analysis/realtime_queries.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+-- Run with: cat realtime_analysis/queries/analysis/realtime_queries.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
+-- IMPORTANT: Run this AFTER ingesting realtime data (step 3 of realtime workflow)
 
 -- ============================================
 -- BASE VIEW: Deduplicated Trip Updates

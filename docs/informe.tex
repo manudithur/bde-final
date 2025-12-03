@@ -296,7 +296,7 @@ export TRANSLINK_GTFSR_API_KEY="your-translink-api-key"
 Crear las tablas necesarias para datos realtime:
 
 \begin{lstlisting}[language=bash]
-cat realtime_analysis/realtime_schema.sql \
+cat realtime_analysis/data_loading/realtime_schema.sql \
   | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
 \end{lstlisting}
 
@@ -305,7 +305,7 @@ cat realtime_analysis/realtime_schema.sql \
 Ejecutar el proceso de ingesta durante un intervalo de tiempo:
 
 \begin{lstlisting}[language=bash]
-python -m realtime_analysis.ingest_realtime \
+python -m realtime_analysis.data.ingest_realtime \
   --duration-minutes 20 \
   --poll-interval 30
 \end{lstlisting}
@@ -319,7 +319,7 @@ A partir de los puntos GPS se construyen trayectorias \emph{map-matched} sobre l
 recorridos estáticos:
 
 \begin{lstlisting}[language=bash]
-python -m realtime_analysis.build_realtime_trajectories \
+python -m realtime_analysis.data.build_realtime_trajectories \
   --hours 2 \
   --route-short-name 99
 \end{lstlisting}
@@ -331,7 +331,7 @@ Las trayectorias resultantes se almacenan en \texttt{realtime\_trips\_mdb}.
 Para comparar detalladamente un viaje programado vs.\ su ejecución real:
 
 \begin{lstlisting}[language=bash]
-python -m realtime_analysis.analyze_realtime \
+python -m realtime_analysis.queries.analysis.analyze_realtime \
   --route-short-name 99
 \end{lstlisting}
 

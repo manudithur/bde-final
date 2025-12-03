@@ -21,8 +21,8 @@ import plotly.graph_objects as go
 # Add parent directories for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from realtime_analysis.config import load_settings
-from realtime_analysis.utils import get_connection
+from realtime_analysis.utility.config import load_settings
+from realtime_analysis.utility.utils import get_connection
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent.parent / "results" / "delay_segments"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)

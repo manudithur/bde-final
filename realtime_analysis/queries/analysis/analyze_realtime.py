@@ -16,8 +16,8 @@ from typing import Dict, Optional, Sequence, Tuple
 import pandas as pd
 import plotly.graph_objects as go
 
-from realtime_analysis.config import load_settings
-from realtime_analysis.utils import (
+from realtime_analysis.utility.config import load_settings
+from realtime_analysis.utility.utils import (
     ensure_output_dir,
     get_connection,
     resolve_route_filter,

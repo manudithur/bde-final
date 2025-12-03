@@ -14,7 +14,7 @@ import psycopg2
 from psycopg2.extensions import connection
 from psycopg2.extras import RealDictCursor
 
-from realtime_analysis.config import Settings, load_settings
+from realtime_analysis.utility.config import Settings, load_settings
 
 
 @dataclass(frozen=True)

@@ -229,9 +229,6 @@ This should return version numbers for both extensions if they're properly insta
 │   │   ├── visualizations/   # Python scripts for graph visualizations (PNG)
 │   │   ├── run_all_analyses.py  # Run SQL + all visualization scripts
 │   │   └── results/          # Output files (PNG) - see results/README.md
-│   ├── utility/             # Utility scripts
-│   │   ├── check_data.sql
-│   │   └── fix_trips_shape_id.sql
 ├── realtime_analysis/       # Real-time ingestion & comparison
 │   ├── realtime_schema.sql
 │   ├── ingest_realtime.py

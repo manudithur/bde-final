@@ -16,3 +16,7 @@ pdflatex -interaction=nonstopmode informe.tex
 echo "Compilación finalizada. Salida: informe.pdf"
 
 
+
+
+
+

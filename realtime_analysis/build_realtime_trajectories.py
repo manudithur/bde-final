@@ -92,22 +92,30 @@ def build_trajs(
                 d.route_id,
                 d.service_date,
                 d.vehicle_id,
-                array_agg(
-                    tgeompoint(
-                        CASE
-                            WHEN s.traj IS NOT NULL THEN ST_LineInterpolatePoint(
-                                s.traj,
-                                ST_LineLocatePoint(s.traj, d.geom)
-                            )
-                            ELSE d.geom
-                        END,
-                        d.entity_timestamp
-                    )
-                    ORDER BY d.entity_timestamp
-                ) AS points
+                tgeompoint(
+                    CASE
+                        WHEN s.traj IS NOT NULL THEN ST_LineInterpolatePoint(
+                            s.traj,
+                            ST_LineLocatePoint(s.traj, d.geom)
+                        )
+                        ELSE d.geom
+                    END,
+                    d.entity_timestamp
+                ) AS point
             FROM dedup d
             LEFT JOIN sched s USING (trip_id)
-            GROUP BY d.trip_instance_id, d.trip_id, d.route_id, d.service_date, d.vehicle_id
+        ),
+        combined AS (
+            SELECT
+                trip_instance_id,
+                -- Take the first non-null value for each field
+                (array_agg(DISTINCT trip_id) FILTER (WHERE trip_id IS NOT NULL))[1] AS trip_id,
+                (array_agg(DISTINCT route_id) FILTER (WHERE route_id IS NOT NULL))[1] AS route_id,
+                (array_agg(DISTINCT service_date) FILTER (WHERE service_date IS NOT NULL))[1] AS service_date,
+                (array_agg(DISTINCT vehicle_id) FILTER (WHERE vehicle_id IS NOT NULL))[1] AS vehicle_id,
+                array_agg(point ORDER BY getTimestamp(point)) AS points
+            FROM sequences
+            GROUP BY trip_instance_id
             HAVING COUNT(*) > 1
         ),
         trajs AS (
@@ -119,7 +127,7 @@ def build_trajs(
                 vehicle_id,
                 tgeompointseq(points) AS trip,
                 trajectory(tgeompointseq(points)) AS traj
-            FROM sequences
+            FROM combined
         )
         INSERT INTO realtime_trips_mdb (
             trip_instance_id, trip_id, route_id, service_date,

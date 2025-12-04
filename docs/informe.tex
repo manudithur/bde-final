@@ -72,7 +72,7 @@
   \IfFileExists{#2}{%
     \includegraphics[#1]{#2}%
   }{%
-    \fbox{\parbox{0.9\linewidth}{\centering Figura no disponible.\\
+    \fbox{\parbox{0.9\linewidth}{\centering \textbf{Falta generar resultado.}\\
     Genere el archivo \texttt{#2} ejecutando los scripts correspondientes.}}%
   }%
 }
@@ -94,7 +94,7 @@
 \vspace{0.9cm}
 \begingroup
 \fontsize{18}{19.2}\selectfont
-\textbf{Análisis GTFS Vancouver: Integración de Datos Estáticos y Realtime}\par
+\textbf{Análisis GTFS Vancouver}\par
 \endgroup
 
 \vspace{0.4cm}
@@ -126,47 +126,11 @@
 
 \section{Introducción}
 
-El estándar \emph{General Transit Feed Specification} (GTFS) se ha consolidado como el formato
-de facto para representar información de transporte público. 
-En su variante estática describe la oferta planificada (paradas, recorridos, horarios),
-mientras que GTFS-Realtime captura la operación efectiva (ubicación de vehículos,
-demoras, cancelaciones).
-
-El objetivo de este proyecto es construir un pipeline reproducible para analizar el sistema
-de transporte del área de Vancouver utilizando ambas fuentes de datos. 
-Sobre una base de datos espacial se ejecutan consultas que permiten:
-
-\begin{itemize}
-  \item Caracterizar la red estática (tipos de rutas, densidad de segmentos, solapamiento,
-        velocidades y accesibilidad a puntos de interés).
-  \item Comparar planificación vs.\ operación (velocidad real vs.\ programada, demoras,
-        regularidad de headways y segmentos con mayores problemas de servicio).
-  \item Generar insumos visuales (mapas interactivos y gráficos estáticos) para apoyar
-        el análisis y la toma de decisiones.
-\end{itemize}
-
-\section{Datos y Herramientas}
-
-\subsection{Datos utilizados}
-
-\begin{itemize}
-  \item \textbf{GTFS Vancouver (estático)}: feed de horarios y recorridos,
-        almacenado en \texttt{static\_analysis/data/gtfs\_vancouver.zip} y procesado
-        hacia \texttt{static\_analysis/data/gtfs\_pruned/}.
-  \item \textbf{GTFS-Realtime TransLink}: posiciones de vehículos y actualizaciones
-        de viajes, accedidas vía API para construir trayectorias reales y métricas
-        de desempeño.
-\end{itemize}
-
-\subsection{Stack tecnológico}
-
-\begin{itemize}
-  \item \textbf{Base de datos}: \emph{PostgreSQL} con extensiones \emph{PostGIS} y \emph{MobilityDB}.
-  \item \textbf{Ingesta GTFS}: herramienta \texttt{gtfs-to-sql} (paquete \texttt{gtfs-via-postgres}).
-  \item \textbf{Lenguaje de análisis}: \emph{Python} (\texttt{static\_analysis} y \texttt{realtime\_analysis}).
-  \item \textbf{Visualización}: \emph{matplotlib} para gráficos estáticos y \emph{folium}/\emph{Plotly}
-        para mapas interactivos.
-\end{itemize}
+Este proyecto analiza el sistema de transporte de Vancouver utilizando datos GTFS estáticos
+y GTFS-Realtime de TransLink. Se implementa un pipeline reproducible sobre PostgreSQL con
+extensiones PostGIS y MobilityDB, utilizando Python para análisis y visualización.
+El pipeline permite caracterizar la red estática, comparar planificación vs.\ operación
+y generar visualizaciones para identificar problemas de servicio.
 
 \section{Metodología de replicación}
 
@@ -184,32 +148,33 @@ pip install -r realtime_analysis/requirements.txt
 npm install -g gtfs-via-postgres
 \end{lstlisting}
 
-Configurar la conexión a la base de datos creando un archivo \texttt{.env}:
+Configurar la conexión a la base de datos exportando las variables de entorno:
 
 \begin{lstlisting}[language=bash]
-PGHOST=localhost
-PGPORT=5432
-PGUSER=postgres
-PGPASSWORD=postgres
-PGDATABASE=gtfs
+export PGHOST=localhost
+export PGPORT=5432
+export PGUSER=postgres
+export PGPASSWORD=postgres
+export PGDATABASE=gtfs
 \end{lstlisting}
 
-\subsection{Puesta en marcha de la base de datos}
+Para hacer estas variables persistentes, agregarlas al perfil del shell
+(e.g., \texttt{\textasciitilde/.bashrc}, \texttt{\textasciitilde/.zshrc}).
 
-Desde la raíz del proyecto:
+\subsection{Requisitos de la base de datos}
+
+Antes de ejecutar cualquier comando, asegurarse de que:
+\begin{itemize}
+  \item La base de datos \texttt{gtfs} existe y está corriendo.
+  \item Las extensiones \texttt{PostGIS} y \texttt{MobilityDB} están instaladas y habilitadas.
+  \item Las variables de entorno de conexión están exportadas (ver sección anterior).
+\end{itemize}
+
+Se puede verificar la conexión y las extensiones con:
 
 \begin{lstlisting}[language=bash]
-chmod +x start_database.sh setup_database.sh check_mobilitydb.sh
-./start_database.sh         # levanta el contenedor Docker con PostgreSQL+PostGIS+MobilityDB
-./setup_database.sh         # crea base 'gtfs' y extensiones necesarias
-\end{lstlisting}
-
-En caso de modificar la imagen o reinicializar el entorno:
-
-\begin{lstlisting}[language=bash]
-docker-compose down -v
-docker-compose up -d
-./setup_database.sh
+psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE \
+  -c "SELECT PostGIS_version(), MobilityDB_version();"
 \end{lstlisting}
 
 \subsection{Flujo GTFS estático}
@@ -231,7 +196,7 @@ Con la base de datos en marcha, importar las tablas:
 \begin{lstlisting}[language=bash]
 cd static_analysis/data/gtfs_pruned
 gtfs-to-sql --require-dependencies -- *.txt \
-  | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+  | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
 \end{lstlisting}
 
 \subsubsection{Creación de estructuras MobilityDB}
@@ -239,48 +204,48 @@ gtfs-to-sql --require-dependencies -- *.txt \
 Desde la raíz del repositorio:
 
 \begin{lstlisting}[language=bash]
-cd static_analysis
-cat data_loading/mobilitydb_import.sql \
-  | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+cat static_analysis/data_loading/mobilitydb_import.sql \
+  | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
 \end{lstlisting}
 
 Este script genera tablas como \texttt{scheduled\_trips\_mdb},
 \texttt{route\_segments}, vistas agregadas y columnas geométricas.
 
-\subsubsection{Ejecución de consultas espaciales estáticas}
+\subsubsection{Carga de densidad poblacional (opcional)}
 
-Las consultas principales se encuentran en
-\texttt{static\_analysis/queries/analysis/spatial\_queries.sql} y se ejecutan con:
+Para los análisis que combinan densidad poblacional y cobertura de transporte,
+se utiliza un GeoJSON de áreas censales de Vancouver. El siguiente script
+calcula la densidad (\texttt{pop}/\texttt{a}) e importa la capa
+\texttt{population\_areas} en la base de datos:
 
 \begin{lstlisting}[language=bash]
-cat static_analysis/queries/analysis/spatial_queries.sql \
-  | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+python static_analysis/data/download_population_data.py \
+  --geo static_analysis/data/population/vancouver_geo.geojson
 \end{lstlisting}
 
-Este archivo define vistas materializadas para densidad de segmentos, proximidad
-a estadios, velocidades, duplicación de rutas y líneas para visualización.
+\subsubsection{Consultas y visualizaciones estáticas}
 
-\subsubsection{Generación de visualizaciones estáticas}
-
-Desde el directorio de análisis:
+Las vistas materializadas y las gráficas de análisis se generan con un único
+comando que orquesta las consultas SQL y los scripts de visualización:
 
 \begin{lstlisting}[language=bash]
-cd static_analysis/queries/analysis
+cd static_analysis/queries
 python run_all_analyses.py
 \end{lstlisting}
 
-Alternativamente, se pueden correr los scripts individuales:
-
-\begin{lstlisting}[language=bash]
-python visualization/route_visualization.py
-python visualization/route_duplication_analysis.py
-python visualization/route_density_analysis.py
-python visualization/speed_analysis.py
-python visualization/stadium_proximity_analysis.py
-\end{lstlisting}
+Este comando:
+\begin{itemize}
+  \item Ejecuta los archivos SQL en \texttt{static\_analysis/queries/sql/},
+        creando vistas materializadas \texttt{qgis\_*} para visualización en QGIS
+        (densidad de rutas, segmentos de velocidad, población vs.\ transporte, etc.).
+  \item Ejecuta los scripts de \texttt{static\_analysis/queries/visualizations/},
+        generando gráficos en formato PNG (histogramas, distribuciones por ruta,
+        comparaciones de velocidad, métricas de proximidad a estadios, etc.).
+\end{itemize}
 
 Los resultados se guardan en \texttt{static\_analysis/queries/results/},
-organizados por tipo de análisis.
+organizados por tipo de análisis. Las vistas \texttt{qgis\_*} pueden cargarse
+directamente en QGIS para producir mapas más detallados.
 
 \subsection{Flujo GTFS-Realtime}
 
@@ -297,7 +262,7 @@ Crear las tablas necesarias para datos realtime:
 
 \begin{lstlisting}[language=bash]
 cat realtime_analysis/realtime_schema.sql \
-  | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
+  | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
 \end{lstlisting}
 
 \subsubsection{Ingesta de feeds GTFS-Realtime}
@@ -319,12 +284,12 @@ A partir de los puntos GPS se construyen trayectorias \emph{map-matched} sobre l
 recorridos estáticos:
 
 \begin{lstlisting}[language=bash]
-python -m realtime_analysis.build_realtime_trajectories \
-  --hours 2 \
-  --route-short-name 99
+python -m realtime_analysis.build_realtime_trajectories --hours 2
 \end{lstlisting}
 
 Las trayectorias resultantes se almacenan en \texttt{realtime\_trips\_mdb}.
+Los puntos GPS crudos se deduplican y se ajustan (\emph{snap}) a las formas
+programadas antes de insertarse en la tabla.
 
 \subsubsection{Análisis puntual de un recorrido}
 
@@ -338,25 +303,33 @@ python -m realtime_analysis.analyze_realtime \
 Los resultados se escriben en \texttt{realtime\_analysis/output/} como mapas HTML,
 gráficos de tiempos y archivos CSV con métricas por segmento.
 
-\subsubsection{Análisis agregados con GTFS-Realtime}
+\subsubsection{Consultas y análisis agregados con GTFS-Realtime}
 
-Finalmente se generan análisis globales sobre todo el conjunto de datos realtime:
+Las vistas materializadas y los análisis agregados sobre datos realtime se
+generan de forma análoga al flujo estático, a través de un único script
+orquestador:
 
 \begin{lstlisting}[language=bash]
-cd realtime_analysis/queries/analysis
+cd realtime_analysis/queries
 python run_all_analyses.py
 \end{lstlisting}
+
+Este comando ejecuta los archivos SQL de \texttt{realtime\_analysis/queries/sql/},
+creando vistas \texttt{realtime\_*} y \texttt{qgis\_realtime\_*}, y luego corre
+los scripts de visualización para producir gráficos en PNG y resúmenes en CSV.
 
 También es posible ejecutar cada análisis de forma individual:
 
 \begin{lstlisting}[language=bash]
-python visualization/speed_vs_schedule_analysis.py
-python visualization/schedule_times_analysis.py
-python visualization/delay_segments_analysis.py
-python visualization/headway_analysis.py
+cd realtime_analysis/queries/visualizations
+python speed_vs_schedule_analysis.py
+python schedule_times_analysis.py
+python delay_segments_analysis.py
+python headway_analysis.py
 \end{lstlisting}
 
-Los resultados se almacenan en \texttt{realtime\_analysis/queries/results/}.
+Los resultados se almacenan en \texttt{realtime\_analysis/queries/results/},
+organizados por tipo de análisis.
 
 \section{Análisis de GTFS estático}
 
@@ -389,8 +362,30 @@ ORDER BY perc DESC;
 \end{lstlisting}
 
 Esta consulta devuelve, para cada modo, la cantidad de rutas y su porcentaje sobre
-el total. Los resultados se utilizan como insumo descriptivo en la discusión
-de la red de transporte.
+el total. En la práctica, complementamos esta tabla con un mapa de la red completa
+y un gráfico de distribución de viajes por ruta, mostrados en las
+Figuras~\ref{fig:route-map} y~\ref{fig:route-trip-dist}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.8\textwidth]{%
+    ../static_analysis/queries/results/route_visualization/route_visualization_map.png}
+  \caption{Mapa de la red de rutas de Vancouver a partir de GTFS estático.}
+  \label{fig:route-map}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.75\textwidth]{%
+    ../static_analysis/queries/results/route_visualization/route_trip_distribution.png}
+  \caption{Distribución del número de viajes por ruta.}
+  \label{fig:route-trip-dist}
+\end{figure}
+
+En el mapa se observa una red especialmente densa en el centro de Vancouver y en
+los corredores troncales hacia el este y el sur. El histograma muestra que un
+subconjunto reducido de rutas concentra un gran número de viajes diarios, mientras
+que la mayoría opera con menor frecuencia, típicamente en zonas periféricas.
 
 \subsection{Densidad de rutas por segmento}
 
@@ -411,20 +406,31 @@ GROUP BY stop1_id, stop2_id, seg_geom;
 \end{lstlisting}
 
 El script \texttt{route\_density\_analysis.py} resume esta información y genera
-el histograma de densidad mostrado en la Figura~\ref{fig:route-density-hist}.
+un histograma de densidad (Figura~\ref{fig:route-density-hist}), mientras que
+las vistas materializadas se utilizan para construir un mapa de densidad de
+segmentos (Figura~\ref{fig:route-density-map}).
 
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
     ../static_analysis/queries/results/route_density/route_density_histogram.png}
-  \caption{Histograma de cantidad de rutas por segmento
-  (\texttt{route\_density\_histogram.png}).}
+  \caption{Histograma de cantidad de rutas por segmento.}
   \label{fig:route-density-hist}
 \end{figure}
 
-Además, el script de visualización genera un \emph{heatmap} interactivo
-(\texttt{route\_density\_heatmap.html}) donde cada segmento se colorea según
-el número de rutas que lo utilizan.
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.75\textwidth]{%
+    ../static_analysis/queries/results/route_density/route_density_map.png}
+  \caption{Mapa de densidad de rutas sobre la red de segmentos.}
+  \label{fig:route-density-map}
+\end{figure}
+
+El histograma evidencia que la mayoría de segmentos tiene pocas rutas superpuestas,
+mientras que un número reducido de corredores concentra un alto nivel de servicio.
+En el mapa estos corredores de alta densidad aparecen como líneas más intensas
+alrededor del centro y en ejes troncales, mientras que las zonas periféricas
+muestran menor superposición de rutas.
 
 \subsection{Duplicación de rutas}
 
@@ -492,16 +498,30 @@ GROUP BY s.route_id, stop1_sequence, stop2_sequence, seg_geom;
 A partir de esta vista se derivan estadísticas agregadas por ruta
 (\texttt{route\_speed\_stats}) y se identifican segmentos con velocidades
 inusualmente altas (\texttt{high\_speed\_segments}). El script
-\texttt{speed\_analysis.py} genera la Figura~\ref{fig:speed-analysis}.
+\texttt{speed\_analysis.py} genera tanto mapas como gráficos resumiendo estas
+métricas, mostrados en las Figuras~\ref{fig:speed-map} y~\ref{fig:speed-hist}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.8\textwidth]{%
+    ../static_analysis/queries/results/speed_analysis/speed_analysis_map.png}
+  \caption{Mapa de velocidades promedio sobre la red de segmentos.}
+  \label{fig:speed-map}
+\end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
-    ../static_analysis/queries/results/speed_analysis/speed_analysis.png}
-  \caption{Distribución de velocidades por ruta y segmentos
-  (\texttt{speed\_analysis.png}).}
-  \label{fig:speed-analysis}
+    ../static_analysis/queries/results/speed_analysis/speed_distribution_histogram.png}
+  \caption{Histograma de velocidades programadas por segmento.}
+  \label{fig:speed-hist}
 \end{figure}
+
+En el mapa se aprecian claramente los tramos más rápidos (corredores de acceso
+rápido y autopistas urbanas) frente a zonas de menor velocidad en el centro
+y en arterias congestionadas. El histograma muestra una distribución concentrada
+en torno a velocidades medias (20--40~km/h), con colas hacia valores muy bajos
+que corresponden a tramos con fuerte fricción (semáforos, giros, áreas céntricas).
 
 \subsection{Accesibilidad a estadios}
 
@@ -536,16 +556,29 @@ FROM football_stadiums s;
 \end{lstlisting}
 
 El script \texttt{stadium\_proximity\_analysis.py} resume el número de viajes por
-franja horaria y genera la Figura~\ref{fig:stadium-proximity}.
+franja horaria y genera tanto mapas como gráficos de demanda hacia cada estadio.
+
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.8\textwidth]{%
+    ../static_analysis/queries/results/stadium_proximity/stadium_stops_and_routes.png}
+  \caption{Mapa de estadios, paradas cercanas y rutas que los sirven.}
+  \label{fig:stadium-map}
+\end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
-    ../static_analysis/queries/results/stadium_proximity/stadium_proximity_analysis.png}
-  \caption{Análisis de proximidad de servicios de transporte a estadios
-  (\texttt{stadium\_proximity\_analysis.png}).}
-  \label{fig:stadium-proximity}
+    ../static_analysis/queries/results/stadium_proximity/stadium_trips_per_day.png}
+  \caption{Viajes diarios que pasan cerca de cada estadio.}
+  \label{fig:stadium-trips}
 \end{figure}
+
+En el mapa se aprecia que BC Place y Rogers Arena se encuentran en un nodo
+concentrado de rutas y paradas, mientras que otros recintos presentan menor
+densidad de servicio en su entorno inmediato. El gráfico de viajes diarios
+muestra que los estadios céntricos reciben significativamente más oferta de
+transporte que aquellos ubicados en zonas residenciales o periféricas.
 
 \section{Análisis con GTFS-Realtime}
 
@@ -555,87 +588,281 @@ programados en \texttt{scheduled\_trips\_mdb}.
 
 \subsection{Velocidad real vs.\ velocidad programada}
 
-El script \texttt{speed\_vs\_schedule\_analysis.py} calcula, para cada segmento,
-la velocidad planificada y la observada a partir de los registros realtime.
-Entre los productos generados se encuentran:
+La comparación de velocidades se realiza mediante la vista materializada
+\texttt{realtime\_speed\_comparison}, que calcula las velocidades programadas
+y observadas para cada segmento:
 
-\begin{itemize}
-  \item \texttt{speed\_scatter\_*.png}: diagrama de dispersión velocidad planificada vs.\ real.
-  \item \texttt{speed\_distribution\_scheduled\_*.png} y
-        \texttt{speed\_distribution\_actual\_*.png}: histogramas de velocidades.
-  \item \texttt{speed\_difference\_*.png}: distribución de diferencias de velocidad.
-\end{itemize}
+\begin{lstlisting}[language=SQL]
+DROP MATERIALIZED VIEW IF EXISTS realtime_speed_comparison;
+CREATE MATERIALIZED VIEW realtime_speed_comparison AS
+WITH with_next_stop AS (
+    SELECT
+        d.trip_instance_id,
+        d.trip_id,
+        d.route_id,
+        d.service_date,
+        d.stop_sequence,
+        d.stop_id,
+        d.actual_arrival,
+        LEAD(d.stop_sequence) OVER w AS next_stop_sequence,
+        LEAD(d.stop_id) OVER w AS next_stop_id,
+        LEAD(d.actual_arrival) OVER w AS next_actual_arrival
+    FROM rt_trip_updates_deduped d
+    WINDOW w AS (PARTITION BY d.trip_instance_id ORDER BY d.stop_sequence)
+)
+SELECT
+    w.trip_instance_id,
+    w.trip_id,
+    r.route_short_name,
+    w.route_id,
+    rs.seg_length AS segment_length_m,
+    EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) AS scheduled_seconds,
+    EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)) AS actual_seconds,
+    (rs.seg_length / NULLIF(EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)), 0) * 3.6) AS scheduled_speed_kmh,
+    (rs.seg_length / NULLIF(EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)), 0) * 3.6) AS actual_speed_kmh
+FROM with_next_stop w
+JOIN route_segments rs
+    ON rs.trip_id = w.trip_id
+    AND rs.stop1_sequence = w.stop_sequence
+LEFT JOIN routes r ON r.route_id = w.route_id
+WHERE w.next_actual_arrival IS NOT NULL
+  AND rs.seg_length > 10
+  AND EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) > 0
+  AND EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)) > 0;
+\end{lstlisting}
 
-En la Figura~\ref{fig:realtime-speed-scatter} se ilustra el scatter plot
-correspondiente a una corrida de análisis.
+Los resultados de esta consulta se visualizan mediante un conjunto de gráficos
+que comparan velocidades programadas vs.\ observadas. En la
+Figura~\ref{fig:realtime-speed-scatter} se ilustra el diagrama de dispersión
+para una corrida de análisis, donde cada punto representa un segmento entre
+paradas consecutivas y se aprecia que muchos puntos quedan por debajo de la
+línea de igualdad (velocidades reales menores a las programadas), sobre todo
+en los tramos teóricamente más rápidos.
 
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
-    ../realtime_analysis/queries/results/speed_vs_schedule/speed_scatter_20251202T191053Z.png}
-  \caption{Comparación de velocidad programada vs.\ observada
-  (\texttt{speed\_scatter\_*.png}).}
+    ../realtime_analysis/queries/results/speed_vs_schedule/speed_scatter.png}
+  \caption{Comparación de velocidad programada vs.\ observada.}
   \label{fig:realtime-speed-scatter}
 \end{figure}
 
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.9\textwidth]{%
+    ../realtime_analysis/queries/results/speed_vs_schedule/speed_difference.png}
+  \caption{Distribución de la diferencia de velocidad (real $-$ programada).}
+  \label{fig:realtime-speed-diff}
+\end{figure}
+
+El histograma de diferencias (Figura~\ref{fig:realtime-speed-diff}) muestra una
+distribución aproximadamente unimodal, centrada levemente por encima de cero:
+en promedio los buses circulan unos pocos km/h más rápido que lo previsto,
+pero con colas hacia valores positivos que evidencian episodios de
+sobreejecución y hacia valores negativos asociadas a tramos muy congestionados.
+
 \subsection{Desempeño de horarios (schedule times)}
 
-El script \texttt{schedule\_times\_analysis.py} compara los horarios programados de
-arribo y partida con los tiempos observados. A partir de estas diferencias se
-construyen:
+La comparación de horarios programados vs.\ observados se realiza mediante la vista
+materializada \texttt{realtime\_schedule\_times}:
 
-\begin{itemize}
-  \item Histogramas de demoras (\texttt{delay\_histogram\_*.png}).
-  \item Categorías de puntualidad (\texttt{delay\_categories\_*.png}).
-  \item Caixas por hora (\texttt{delay\_by\_hour\_*.png}).
-  \item Promedio de demora por ruta (\texttt{delay\_by\_route\_*.png}).
-  \item Mapas de calor día/hora (\texttt{delay\_heatmap\_*.png}).
-  \item Métricas de On-Time Performance (\texttt{on\_time\_performance\_*.png}).
-\end{itemize}
+\begin{lstlisting}[language=SQL]
+DROP MATERIALIZED VIEW IF EXISTS realtime_schedule_times;
+CREATE MATERIALIZED VIEW realtime_schedule_times AS
+SELECT
+    d.trip_instance_id,
+    d.trip_id,
+    r.route_short_name,
+    r.route_long_name,
+    d.route_id,
+    d.service_date,
+    d.stop_sequence,
+    d.stop_id,
+    s.stop_name,
+    ts.arrival_time AS scheduled_arrival_interval,
+    d.actual_arrival,
+    d.actual_departure,
+    d.arrival_delay_seconds,
+    d.departure_delay_seconds,
+    d.arrival_delay_seconds / 60.0 AS delay_minutes,
+    EXTRACT(hour FROM d.actual_arrival) AS hour_of_day,
+    EXTRACT(dow FROM d.actual_arrival) AS day_of_week,
+    CASE 
+        WHEN EXTRACT(dow FROM d.actual_arrival) IN (0, 6) THEN 'Weekend'
+        ELSE 'Weekday'
+    END AS day_type
+FROM rt_trip_updates_deduped d
+JOIN routes r ON r.route_id = d.route_id
+LEFT JOIN stops s ON s.stop_id = d.stop_id
+LEFT JOIN transit_stops ts 
+    ON ts.trip_id = d.trip_id 
+    AND ts.stop_sequence = d.stop_sequence
+WHERE d.arrival_delay_seconds IS NOT NULL;
+\end{lstlisting}
 
+Sobre esta vista se construyen distintos gráficos que resumen el comportamiento
+de las demoras (histogramas, boxplots por hora, promedios por ruta, etc.).
 En la Figura~\ref{fig:realtime-delay-hist} se muestra el histograma de demoras
-generado para una corrida específica.
+generado para una corrida específica, donde se observa una cola hacia valores
+positivos que indica predominio de demoras por encima del horario programado.
 
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
-    ../realtime_analysis/queries/results/schedule_times/delay_histogram_20251202T191109Z.png}
-  \caption{Distribución de demoras respecto al horario programado
-  (\texttt{delay\_histogram\_*.png}).}
+    ../realtime_analysis/queries/results/schedule_times/delay_histogram.png}
+  \caption{Distribución de demoras respecto al horario programado.}
   \label{fig:realtime-delay-hist}
 \end{figure}
 
 \subsection{Segmentos de demora y patrones de congestión}
 
-El análisis de \texttt{delay\_segments\_analysis.py} identifica los segmentos
-con mayor retraso promedio y estudia cómo varían las demoras según hora del día
-y día de semana. Entre las salidas se incluyen:
+El análisis de demoras por segmento se basa en la vista materializada
+\texttt{realtime\_delay\_analysis}:
 
-\begin{itemize}
-  \item \texttt{delay\_by\_time\_period\_*.png}: demoras por tramo horario.
-  \item \texttt{delay\_by\_hour\_*.png}: demoras por hora del día.
-  \item \texttt{worst\_segments\_*.png}: segmentos con peor desempeño.
-  \item \texttt{delay\_severity\_*.png}: distribución por severidad.
-  \item \texttt{weekday\_vs\_weekend\_*.png}: comparación laboral vs.\ fin de semana.
-  \item \texttt{delay\_hotspots\_map\_*.html}: mapa interactivo de \emph{hotspots}.
-\end{itemize}
+\begin{lstlisting}[language=SQL]
+DROP MATERIALIZED VIEW IF EXISTS realtime_delay_analysis;
+CREATE MATERIALIZED VIEW realtime_delay_analysis AS
+WITH with_next AS (
+    SELECT
+        d.trip_instance_id,
+        d.trip_id,
+        d.route_id,
+        d.service_date,
+        d.stop_sequence AS from_seq,
+        d.stop_id AS from_stop_id,
+        d.actual_arrival AS from_arrival,
+        d.arrival_delay_seconds AS from_delay,
+        LEAD(d.stop_sequence) OVER w AS to_seq,
+        LEAD(d.stop_id) OVER w AS to_stop_id,
+        LEAD(d.actual_arrival) OVER w AS to_arrival,
+        LEAD(d.arrival_delay_seconds) OVER w AS to_delay
+    FROM rt_trip_updates_deduped d
+    WINDOW w AS (PARTITION BY d.trip_instance_id ORDER BY d.stop_sequence)
+)
+SELECT
+    w.trip_instance_id,
+    w.trip_id,
+    r.route_short_name,
+    w.route_id,
+    w.from_seq,
+    w.to_seq,
+    rs.seg_length AS segment_length_m,
+    rs.seg_geom,
+    EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) AS scheduled_seconds,
+    EXTRACT(EPOCH FROM (w.to_arrival - w.from_arrival)) AS actual_seconds,
+    (w.to_delay - w.from_delay) AS segment_delay_change,
+    (EXTRACT(EPOCH FROM (w.to_arrival - w.from_arrival)) - 
+     EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time))) / 60.0 AS segment_delay_minutes,
+    EXTRACT(hour FROM w.from_arrival) AS hour_of_day,
+    EXTRACT(dow FROM w.from_arrival) AS day_of_week,
+    CASE 
+        WHEN EXTRACT(dow FROM w.from_arrival) IN (0, 6) THEN 'Weekend'
+        ELSE 'Weekday'
+    END AS day_type,
+    CASE
+        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 7 AND 9 THEN 'Morning Rush'
+        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 16 AND 18 THEN 'Evening Rush'
+        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 9 AND 16 THEN 'Midday'
+        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 18 AND 22 THEN 'Evening'
+        ELSE 'Night'
+    END AS time_period
+FROM with_next w
+JOIN route_segments rs 
+    ON rs.trip_id = w.trip_id 
+    AND rs.stop1_sequence = w.from_seq
+LEFT JOIN routes r ON r.route_id = w.route_id
+WHERE w.to_arrival IS NOT NULL
+  AND rs.seg_length > 10
+  AND EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) > 0
+  AND EXTRACT(EPOCH FROM (w.to_arrival - w.from_arrival)) > 0;
+\end{lstlisting}
 
-La Figura~\ref{fig:realtime-worst-segments} resume gráficamente los segmentos
-más afectados.
+El análisis agrega esta información en distintos gráficos (por hora, por tipo
+de día, por severidad de la demora, etc.). En particular, la
+Figura~\ref{fig:realtime-worst-segments} resume gráficamente los segmentos
+más afectados en términos de demora promedio.
 
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
-    ../realtime_analysis/queries/results/delay_segments/worst_segments_20251202T191124Z.png}
-  \caption{Segmentos con mayores demoras promedio
-  (\texttt{worst\_segments\_*.png}).}
+    ../realtime_analysis/queries/results/delay_segments/worst_segments.png}
+  \caption{Segmentos con mayores demoras promedio.}
   \label{fig:realtime-worst-segments}
 \end{figure}
 
 \subsection{Regularidad de headways y \emph{bus bunching}}
 
-Finalmente, el script \texttt{headway\_analysis.py} calcula los intervalos entre
-vehículos consecutivos en una misma ruta y dirección, categorizándolos como:
+El análisis de headways se basa en la vista materializada
+\texttt{realtime\_headway\_stats}, que calcula los intervalos entre vehículos
+consecutivos:
+
+\begin{lstlisting}[language=SQL]
+DROP MATERIALIZED VIEW IF EXISTS realtime_headway_stats;
+CREATE MATERIALIZED VIEW realtime_headway_stats AS
+WITH stop_arrivals AS (
+    SELECT
+        rtu.route_id,
+        r.route_short_name,
+        rtu.stop_id,
+        s.stop_name,
+        rtu.trip_instance_id,
+        rtu.trip_id,
+        rtu.arrival_time,
+        EXTRACT(hour FROM rtu.arrival_time) AS hour_of_day,
+        EXTRACT(dow FROM rtu.arrival_time) AS day_of_week,
+        CASE 
+            WHEN EXTRACT(dow FROM rtu.arrival_time) IN (0, 6) THEN 'Weekend'
+            ELSE 'Weekday'
+        END AS day_type,
+        CASE
+            WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 7 AND 9 THEN 'Morning Rush'
+            WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 16 AND 18 THEN 'Evening Rush'
+            WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 9 AND 16 THEN 'Midday'
+            WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 18 AND 22 THEN 'Evening'
+            ELSE 'Night'
+        END AS time_period
+    FROM rt_trip_updates rtu
+    JOIN routes r ON r.route_id = rtu.route_id
+    LEFT JOIN stops s ON s.stop_id = rtu.stop_id
+    WHERE rtu.arrival_time IS NOT NULL
+      AND rtu.stop_id IS NOT NULL
+),
+with_prev AS (
+    SELECT
+        *,
+        LAG(arrival_time) OVER (
+            PARTITION BY route_id, stop_id
+            ORDER BY arrival_time
+        ) AS prev_arrival,
+        LAG(trip_instance_id) OVER (
+            PARTITION BY route_id, stop_id
+            ORDER BY arrival_time
+        ) AS prev_trip_instance_id
+    FROM stop_arrivals
+)
+SELECT
+    route_id,
+    route_short_name,
+    stop_id,
+    stop_name,
+    trip_instance_id,
+    prev_trip_instance_id,
+    arrival_time,
+    prev_arrival,
+    EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) / 60.0 AS headway_minutes,
+    hour_of_day,
+    day_of_week,
+    day_type,
+    time_period
+FROM with_prev
+WHERE prev_arrival IS NOT NULL
+  AND trip_instance_id != prev_trip_instance_id
+  AND EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) > 0
+  AND EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) < 7200;
+\end{lstlisting}
+
+El script \texttt{headway\_analysis.py} utiliza esta vista para categorizar
+los headways como:
 
 \begin{itemize}
   \item \textbf{Bunched} (\(<3\) minutos): vehículos demasiado próximos.
@@ -650,9 +877,8 @@ obtenida a partir de los registros realtime.
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
-    ../realtime_analysis/queries/results/headway_analysis/headway_distribution_20251202T191157Z.png}
-  \caption{Distribución de headways entre vehículos
-  (\texttt{headway\_distribution\_*.png}).}
+    ../realtime_analysis/queries/results/headway_analysis/headway_distribution.png}
+  \caption{Distribución de headways entre vehículos.}
   \label{fig:realtime-headway-dist}
 \end{figure}
 

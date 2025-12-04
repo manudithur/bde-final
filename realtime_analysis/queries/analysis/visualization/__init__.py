@@ -1,3 +1,0 @@
-# GTFS Realtime Visualization Scripts
-
-

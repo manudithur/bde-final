@@ -165,9 +165,8 @@ This should return version numbers for both extensions if they're properly insta
 
 4. **Build map-matched actual trajectories**
    ```bash
-   python -m realtime_analysis.data.build_realtime_trajectories --hours 2
+   python -m realtime_analysis.data.build_realtime_trajectories
    ```
-   Limit to processing data until --hours behind
    Requires: Realtime vehicle positions from step 3, scheduled_trips_mdb from static workflow
    Raw GPS points are deduplicated and snapped onto the scheduled shape before
    upserting into `realtime_trips_mdb`.

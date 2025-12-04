@@ -211,7 +211,7 @@ cat static_analysis/data_loading/mobilitydb_import.sql \
 Este script genera tablas como \texttt{scheduled\_trips\_mdb},
 \texttt{route\_segments}, vistas agregadas y columnas geométricas.
 
-\subsubsection{Carga de densidad poblacional (opcional)}
+\subsubsection{Carga de densidad poblacional}
 
 Para los análisis que combinan densidad poblacional y cobertura de transporte,
 se utiliza un GeoJSON de áreas censales de Vancouver. El siguiente script
@@ -236,7 +236,7 @@ python run_all_analyses.py
 Este comando:
 \begin{itemize}
   \item Ejecuta los archivos SQL en \texttt{static\_analysis/queries/sql/},
-        creando vistas materializadas \texttt{qgis\_*} para visualización en QGIS
+        creando vistas materializadas para visualización en herramientas de mapeo
         (densidad de rutas, segmentos de velocidad, población vs.\ transporte, etc.).
   \item Ejecuta los scripts de \texttt{static\_analysis/queries/visualizations/},
         generando gráficos en formato PNG (histogramas, distribuciones por ruta,
@@ -244,8 +244,7 @@ Este comando:
 \end{itemize}
 
 Los resultados se guardan en \texttt{static\_analysis/queries/results/},
-organizados por tipo de análisis. Las vistas \texttt{qgis\_*} pueden cargarse
-directamente en QGIS para producir mapas más detallados.
+organizados por tipo de análisis.
 
 \subsection{Flujo GTFS-Realtime}
 
@@ -284,24 +283,12 @@ A partir de los puntos GPS se construyen trayectorias \emph{map-matched} sobre l
 recorridos estáticos:
 
 \begin{lstlisting}[language=bash]
-python -m realtime_analysis.build_realtime_trajectories --hours 2
+python -m realtime_analysis.build_realtime_trajectories
 \end{lstlisting}
 
 Las trayectorias resultantes se almacenan en \texttt{realtime\_trips\_mdb}.
 Los puntos GPS crudos se deduplican y se ajustan (\emph{snap}) a las formas
 programadas antes de insertarse en la tabla.
-
-\subsubsection{Análisis puntual de un recorrido}
-
-Para comparar detalladamente un viaje programado vs.\ su ejecución real:
-
-\begin{lstlisting}[language=bash]
-python -m realtime_analysis.queries.analysis.analyze_realtime \
-  --route-short-name 99
-\end{lstlisting}
-
-Los resultados se escriben en \texttt{realtime\_analysis/output/} como mapas HTML,
-gráficos de tiempos y archivos CSV con métricas por segmento.
 
 \subsubsection{Consultas y análisis agregados con GTFS-Realtime}
 
@@ -315,8 +302,8 @@ python run_all_analyses.py
 \end{lstlisting}
 
 Este comando ejecuta los archivos SQL de \texttt{realtime\_analysis/queries/sql/},
-creando vistas \texttt{realtime\_*} y \texttt{qgis\_realtime\_*}, y luego corre
-los scripts de visualización para producir gráficos en PNG y resúmenes en CSV.
+creando vistas \texttt{realtime\_*} y vistas de visualización, y luego corre
+los scripts para producir gráficos en PNG y resúmenes en CSV.
 
 También es posible ejecutar cada análisis de forma individual:
 
@@ -337,7 +324,8 @@ organizados por tipo de análisis.
 
 La primera consulta caracteriza la composición de la red en términos de tipo de servicio
 (\texttt{bus}, \texttt{subway}, \texttt{rail}, \texttt{ferry}, etc.), utilizando las
-tablas GTFS \texttt{routes} y un CTE de mapeo de códigos:
+tablas GTFS \texttt{routes} y un CTE de mapeo de códigos para calcular el porcentaje
+de rutas por modo.
 
 \begin{lstlisting}[language=SQL]
 WITH route_types(route_type, name) AS (
@@ -361,11 +349,7 @@ FROM route_groups g JOIN route_types t ON g.route_type = t.route_type
 ORDER BY perc DESC;
 \end{lstlisting}
 
-Esta consulta devuelve, para cada modo, la cantidad de rutas y su porcentaje sobre
-el total. A partir de la vista materializada \texttt{qgis\_route\_visualization},
-QGIS genera un mapa de la red completa (Figura~\ref{fig:route-map}), mientras que
-el script \texttt{route\_visualization.py} construye gráficos de oferta por ruta
-que complementan la lectura visual de la red.
+Se presentan a continuación el mapa completo de la red y la distribución de viajes por ruta:
 
 \begin{figure}[H]
   \centering
@@ -378,8 +362,8 @@ que complementan la lectura visual de la red.
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
-    ../static_analysis/queries/results/route_visualization/route_trip_statistics.png}
-  \caption{Rutas de colectivo ordenadas por cantidad de viajes diarios.}
+    ../static_analysis/queries/results/route_visualization/route_trip_distribution.png}
+  \caption{Distribución de viajes diarios por ruta de colectivo.}
   \label{fig:route-trip-stats}
 \end{figure}
 
@@ -391,8 +375,8 @@ mientras que la mayoría opera con menor frecuencia, típicamente en zonas perif
 \subsection{Densidad de rutas por segmento}
 
 Para estudiar la superposición de recorridos sobre el espacio urbano se construye 
-una vista materializada de densidad de rutas por segmento (\texttt{segment\_route\_density})
-basada en \texttt{route\_segments}. Un fragmento simplificado de la definición es:
+una vista materializada de densidad de rutas por segmento, agrupando los tramos
+por geometría y contando las rutas distintas que pasan por cada uno.
 
 \begin{lstlisting}[language=SQL]
 DROP MATERIALIZED VIEW IF EXISTS segment_route_density;
@@ -406,13 +390,7 @@ WHERE seg_geom IS NOT NULL
 GROUP BY stop1_id, stop2_id, seg_geom;
 \end{lstlisting}
 
-En la implementación final esta lógica se encapsula en las consultas de
-\texttt{static\_analysis/queries/sql/} y se materializa junto con el resto de
-vistas al ejecutar \texttt{static\_analysis/queries/run\_all\_analyses.py}.
-El script \texttt{route\_density\_analysis.py}
-resume esta información y genera un histograma de densidad
-(Figura~\ref{fig:route-density-hist}), mientras que la vista se utiliza como capa
-en QGIS para construir el mapa de la Figura~\ref{fig:route-density-map}.
+Los resultados visuales derivados de esta vista son:
 
 \begin{figure}[H]
   \centering
@@ -439,10 +417,9 @@ principalmente en verde, con menor superposición de recorridos.
 
 \subsection{Velocidades programadas por segmento}
 
-La velocidad promedio por segmento y por ruta se obtiene combinando \texttt{route\_segments}
-con los horarios de llegada previstos, y se materializa en una vista de segmentos
-con velocidad programada. Un esquema básico de cálculo de velocidades a partir de
-los horarios es:
+La velocidad promedio por segmento y por ruta se obtiene combinando la geometría de los segmentos
+con los horarios de llegada previstos. Esta información se materializa en una vista que calcula
+la velocidad en km/h para cada tramo entre paradas.
 
 \begin{lstlisting}[language=SQL]
 DROP MATERIALIZED VIEW IF EXISTS schedule_speeds;
@@ -458,15 +435,7 @@ WHERE stop2_arrival_time <> stop1_arrival_time
 GROUP BY s.route_id, stop1_sequence, stop2_sequence, seg_geom;
 \end{lstlisting}
 
-Sobre esta base se construye la vista \texttt{qgis\_speed\_segments}, que agrega
-estadísticas por ruta y filtra los segmentos inválidos. A partir de esta vista:
-
-\begin{itemize}
-  \item QGIS genera mapas de velocidad promedio sobre la red
-  (Figuras~\ref{fig:speed-map} y~\ref{fig:speed-map-slow}),
-  \item el script \texttt{speed\_analysis.py} construye histogramas y gráficos
-        agregados por ruta y modo (Figura~\ref{fig:speed-hist}).
-\end{itemize}
+A continuación se muestran los mapas de velocidad sobre la red y el histograma de distribución:
 
 \begin{figure}[H]
   \centering
@@ -502,13 +471,9 @@ muy bajos que corresponden a tramos fuertemente congestionados.
 
 \subsection{Densidad poblacional y cobertura de transporte}
 
-Para relacionar la oferta de transporte con la demanda potencial se incorporan
-áreas censales de Vancouver con población y superficie. A partir de este insumo
-se construye una capa de densidad poblacional y una superposición con la red de
-transporte utilizando las vistas \texttt{population\_density} y
-\texttt{qgis\_population\_transit\_overlay}.
-
-Un esquema simplificado de la superposición entre densidad y recorridos es:
+Para relacionar la oferta de transporte con la demanda potencial, se incorporan áreas censales
+con datos de población. Se construye una vista que superpone estas áreas con la red de rutas,
+calculando métricas de cobertura como la longitud de rutas por kilómetro cuadrado.
 
 \begin{lstlisting}[language=SQL]
 CREATE MATERIALIZED VIEW qgis_population_transit_overlay AS
@@ -547,9 +512,7 @@ LEFT JOIN bus_route_segments brs
 GROUP BY pa.id, pa.population_density, pa.geom, pa.area_km2;
 \end{lstlisting}
 
-Estas consultas se ejecutan automáticamente al correr
-\texttt{static\_analysis/queries/run\_all\_analyses.py}, que primero crea las
-vistas materializadas y luego genera los gráficos.
+Los siguientes mapas y gráficos ilustran la relación entre población y transporte:
 
 \begin{figure}[H]
   \centering
@@ -567,13 +530,6 @@ vistas materializadas y luego genera los gráficos.
   \label{fig:population-routes-map}
 \end{figure}
 
-El primer mapa destaca las zonas de mayor concentración poblacional, mientras que
-la superposición con las rutas permite identificar corredores bien servidos frente
-a “manchas” densas con menor cobertura.
-
-El script \texttt{population\_density\_analysis.py} genera gráficos que resumen
-esta relación:
-
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
@@ -582,29 +538,18 @@ esta relación:
   \label{fig:population-coverage}
 \end{figure}
 
-\begin{figure}[H]
-  \centering
-  \includegraphicsifexists[width=0.75\textwidth]{%
-    ../static_analysis/queries/results/population_density/transit_vs_population_scatter.png}
-  \caption{Relación entre densidad poblacional y longitud de rutas cercanas.}
-  \label{fig:population-scatter}
-\end{figure}
-
-En conjunto, los mapas y gráficos muestran que las zonas céntricas concentran
-tanto mayor densidad poblacional como mejor cobertura de transporte, mientras que
-algunas áreas densas en la periferia aparecen con niveles de servicio más
-limitados, sugiriendo posibles oportunidades de mejora.
+El primer mapa destaca las zonas de mayor concentración poblacional, mientras que
+la superposición con las rutas permite identificar corredores bien servidos frente
+a “manchas” densas con menor cobertura. En conjunto, los mapas y gráficos muestran
+que las zonas céntricas concentran tanto mayor densidad poblacional como mejor
+cobertura de transporte, mientras que algunas áreas densas en la periferia aparecen
+con niveles de servicio más limitados.
 
 \subsection{Accesibilidad local a estadios}
 
-Los estadios y arenas deportivas se modelan como puntos de interés dentro del
-área de estudio. La tabla \texttt{football\_stadiums} se puebla con coordenadas
-de BC Place, Rogers Arena y Pacific Coliseum, y se analizan las paradas y rutas
-de colectivo dentro de un radio de 600~m (consistente en todo el trabajo).
-Las vistas \texttt{qgis\_stadiums} y \texttt{qgis\_stadium\_proximity} alimentan
-los mapas y gráficos de esta sección.
-
-La tabla de estadios y una vista básica de proximidad pueden definirse como:
+Los estadios se modelan como puntos de interés y se analiza la oferta de transporte
+en un radio de 600~m. La consulta identifica las paradas y rutas cercanas, generando
+una vista materializada para evaluar la accesibilidad local de cada recinto.
 
 \begin{lstlisting}[language=SQL]
 CREATE TABLE IF NOT EXISTS football_stadiums (
@@ -629,10 +574,7 @@ JOIN stops st
   ON ST_DistanceSphere(s.geom, st.stop_loc::geometry) <= 600;
 \end{lstlisting}
 
-En el proyecto, \texttt{static\_analysis/queries/sql/08\_stadium\_proximity.sql}
-contiene una versión extendida de esta consulta, y el script
-\texttt{stadium\_proximity\_analysis.py} utiliza la vista materializada
-correspondiente para generar los gráficos.
+El análisis de proximidad produce los siguientes mapas y gráficos de oferta:
 
 \begin{figure}[H]
   \centering
@@ -650,13 +592,6 @@ correspondiente para generar los gráficos.
   \label{fig:stadium-stops}
 \end{figure}
 
-El mapa muestra que BC Place y Rogers Arena se encuentran en un nodo concentrado
-de paradas y rutas de colectivo, mientras que otros recintos presentan menor
-densidad de servicio en su entorno inmediato.
-
-El script \texttt{stadium\_proximity\_analysis.py} complementa la lectura
-espacial con un gráfico de oferta diaria:
-
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
@@ -665,20 +600,17 @@ espacial con un gráfico de oferta diaria:
   \label{fig:stadium-trips}
 \end{figure}
 
-En este gráfico se observa que los estadios céntricos reciben significativamente
-más viajes diarios que aquellos ubicados en zonas residenciales o periféricas.
+El mapa muestra que BC Place y Rogers Arena se encuentran en un nodo concentrado
+de paradas y rutas de colectivo, mientras que otros recintos presentan menor
+densidad de servicio en su entorno inmediato. El gráfico de barras confirma
+que los estadios céntricos reciben significativamente más viajes diarios que
+aquellos ubicados en zonas residenciales o periféricas.
 
 \subsection{Conectividad entre estadios y áreas de alta densidad}
 
-Finalmente se analiza cómo los estadios se conectan con las zonas de mayor
-densidad poblacional. La consulta \texttt{12\_stadium\_population\_overlay.sql}
-construye la vista \texttt{qgis\_stadium\_population\_overlay}, que mide cuántas
-áreas densas alcanza cada estadio, cuánta población queda conectada y qué tan
-intensa es la red de segmentos que realiza esa conexión. La consulta
-\texttt{13\_stadium\_density\_connecting\_routes.sql} devuelve las rutas completas
-que vinculan estadios con áreas de alta densidad, usadas como capa en QGIS.
-
-Un fragmento representativo de la agregación de conectividad por estadio es:
+Finalmente se analiza la conectividad directa entre los estadios y las zonas de
+alta densidad poblacional. La consulta mide cuántas áreas densas alcanza cada estadio
+y genera geometrías completas de las rutas que realizan esta conexión.
 
 \begin{lstlisting}[language=SQL]
 WITH stadium_connectivity_stats AS (
@@ -710,32 +642,7 @@ SELECT
 FROM stadium_connectivity_stats;
 \end{lstlisting}
 
-De forma análoga, \texttt{13\_stadium\_density\_connecting\_routes.sql} agrupa
-todos los segmentos de cada ruta conectora usando \texttt{ST\_Collect} para
-obtener una geometría de recorrido completa que luego se utiliza en QGIS.
-
-\begin{figure}[H]
-  \centering
-  \includegraphicsifexists[width=0.8\textwidth]{%
-    ../static_analysis/queries/results/stadium_population/stadium_high_density_population_routes.png}
-  \caption{Rutas de colectivo que conectan estadios con áreas de alta densidad poblacional.}
-  \label{fig:stadium-density-routes}
-\end{figure}
-
-En el mapa se observan claramente los corredores que vinculan los estadios con
-las “manchas” de mayor densidad, permitiendo evaluar si la red ofrece conexiones
-directas o si la accesibilidad depende de transbordos complejos.
-
-El script \texttt{stadium\_population\_analysis.py} genera gráficos que resumen
-estas métricas a nivel agregado:
-
-\begin{figure}[H]
-  \centering
-  \includegraphicsifexists[width=0.75\textwidth]{%
-    ../static_analysis/queries/results/stadium_population/stadium_connectivity_vs_population.png}
-  \caption{Relación entre población conectada y segmentos de tránsito conectores por estadio.}
-  \label{fig:stadium-connectivity-vs-pop}
-\end{figure}
+La conectividad con áreas densas se visualiza en los siguientes gráficos y mapas:
 
 \begin{figure}[H]
   \centering
@@ -747,30 +654,29 @@ estas métricas a nivel agregado:
 
 \begin{figure}[H]
   \centering
-  \includegraphicsifexists[width=0.9\textwidth]{%
-    ../static_analysis/queries/results/stadium_population/stadium_connectivity_metrics.png}
-  \caption{Comparación de áreas densas conectadas y segmentos de tránsito por estadio.}
-  \label{fig:stadium-connectivity-metrics}
+  \includegraphicsifexists[width=0.8\textwidth]{%
+    ../static_analysis/queries/results/stadium_population/stadium_high_density_population_routes.png}
+  \caption{Rutas de colectivo que conectan estadios con áreas de alta densidad poblacional.}
+  \label{fig:stadium-density-routes}
 \end{figure}
 
-Los gráficos muestran, por un lado, qué estadios logran conectar a mayor población
-en áreas de alta densidad y, por otro, cuán intensa es la infraestructura de
-transporte que sostiene esas conexiones. En conjunto con el mapa de rutas
-conectoras, permiten identificar estadios con buena cobertura hacia las zonas más
-densas de la ciudad frente a otros cuya accesibilidad depende de unos pocos
-recorridos.
+Los gráficos y mapas muestran, por un lado, qué estadios se asocian con mayor
+población en áreas de alta densidad y, por otro, los corredores principales que
+materializan esas conexiones sobre la red de transporte.
 
 \section{Análisis con GTFS-Realtime}
 
 Los análisis sobre datos en tiempo real se basan en las trayectorias \emph{map-matched}
 almacenadas en \texttt{realtime\_trips\_mdb}, las cuales se comparan con sus equivalentes
-programados en \texttt{scheduled\_trips\_mdb}.
+programados en \texttt{scheduled\_trips\_mdb}. Los resultados presentados en esta sección
+se basan en aproximadamente una hora de datos recolectados el 3 de diciembre de 2025
+entre las 11:00 y las 12:00 (hora local).
 
 \subsection{Velocidad real vs.\ velocidad programada}
 
-La comparación de velocidades se realiza mediante la vista materializada
-\texttt{realtime\_speed\_comparison}, que calcula las velocidades programadas
-y observadas para cada segmento. Un esquema simplificado de la consulta es:
+La comparación de velocidades se realiza mediante una vista materializada que calcula
+las velocidades programadas y observadas para cada segmento, permitiendo identificar
+desviaciones sistemáticas en la operación.
 
 \begin{lstlisting}[language=SQL]
 DROP MATERIALIZED VIEW IF EXISTS realtime_speed_comparison;
@@ -811,15 +717,7 @@ WHERE w.next_actual_arrival IS NOT NULL
   AND EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)) > 0;
 \end{lstlisting}
 
-A partir de esta vista se generan tanto
-mapas como gráficos:
-
-\begin{itemize}
-  \item un mapa de diferencia de velocidad que resume espacialmente qué tramos
-        son sistemáticamente más lentos o más rápidos que lo previsto,
-  \item histogramas y gráficos por ruta y por hora que cuantifican estas
-        diferencias.
-\end{itemize}
+La comparación espacial y estadística se resume en las siguientes figuras:
 
 \begin{figure}[H]
   \centering
@@ -831,13 +729,6 @@ mapas como gráficos:
   \label{fig:realtime-speed-diff-map}
 \end{figure}
 
-En este mapa se identifican rápidamente corredores donde los buses circulan
-de forma sistemáticamente más lenta que lo previsto (en rojo), así como tramos
-que tienden a adelantarse sobre el horario (en amarillo).
-
-A nivel agregado, se utilizan gráficos para resumir la distribución de estas
-diferencias:
-
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.9\textwidth]{%
@@ -846,16 +737,18 @@ diferencias:
   \label{fig:realtime-speed-diff}
 \end{figure}
 
-El histograma de diferencias muestra una distribución aproximadamente unimodal,
-con una masa importante de segmentos con velocidades similares a las previstas y
-colas que capturan tanto episodios de fuerte sobreejecución como segmentos
-marcadamente más lentos que el plan.
+En este mapa se identifican rápidamente corredores donde los buses circulan
+de forma sistemáticamente más lenta que lo previsto (en rojo), así como tramos
+que tienden a adelantarse sobre el horario (en amarillo). El histograma de diferencias
+muestra una distribución aproximadamente unimodal, con una masa importante de segmentos
+con velocidades similares a las previstas y colas que capturan tanto episodios de
+fuerte sobreejecución como segmentos marcadamente más lentos que el plan.
 
 \subsection{Desempeño de horarios (schedule times)}
 
-La comparación de horarios programados vs.\ observados se realiza mediante la vista
-materializada \texttt{realtime\_schedule\_times}, que registra para cada parada la
-hora prevista y la hora efectivamente observada. Un fragmento representativo es:
+La comparación de horarios programados vs.\ observados se realiza mediante una vista
+que registra para cada parada la hora prevista y la hora efectivamente observada,
+calculando la demora en minutos para cada evento de llegada.
 
 \begin{lstlisting}[language=SQL]
 DROP MATERIALIZED VIEW IF EXISTS realtime_schedule_times;
@@ -891,8 +784,7 @@ LEFT JOIN transit_stops ts
 WHERE d.arrival_delay_seconds IS NOT NULL;
 \end{lstlisting}
 
-A partir de esta vista se construye
-un mapa de puntualidad y varios gráficos agregados.
+El desempeño de puntualidad se ilustra mediante un mapa y un histograma de demoras:
 
 \begin{figure}[H]
   \centering
@@ -904,13 +796,6 @@ un mapa de puntualidad y varios gráficos agregados.
   \label{fig:realtime-delay-map}
 \end{figure}
 
-El mapa permite ubicar espacialmente los puntos donde el sistema opera de forma
-mayormente puntual (en verde) frente a corredores donde predominan los retrasos
-o adelantos marcados.
-
-A nivel estadístico, se analizan las distribuciones de demora y su variación por
-hora y por ruta:
-
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.75\textwidth]{%
@@ -919,99 +804,17 @@ hora y por ruta:
   \label{fig:realtime-delay-hist}
 \end{figure}
 
-Estos gráficos muestran una cola hacia valores positivos que indica predominio
-de demoras por encima del horario programado, especialmente en horas pico y en
-determinadas rutas troncales.
-
-\subsection{Segmentos de demora y patrones de congestión}
-
-El análisis de demoras por segmento se basa en la vista materializada
-\texttt{realtime\_delay\_analysis}, que compara para cada tramo entre paradas
-el tiempo programado con el tiempo efectivamente observado. La estructura básica
-de la vista es:
-
-\begin{lstlisting}[language=SQL]
-DROP MATERIALIZED VIEW IF EXISTS realtime_delay_analysis;
-CREATE MATERIALIZED VIEW realtime_delay_analysis AS
-WITH with_next AS (
-    SELECT
-        d.trip_instance_id,
-        d.trip_id,
-        d.route_id,
-        d.service_date,
-        d.stop_sequence AS from_seq,
-        d.stop_id AS from_stop_id,
-        d.actual_arrival AS from_arrival,
-        d.arrival_delay_seconds AS from_delay,
-        LEAD(d.stop_sequence) OVER w AS to_seq,
-        LEAD(d.stop_id) OVER w AS to_stop_id,
-        LEAD(d.actual_arrival) OVER w AS to_arrival,
-        LEAD(d.arrival_delay_seconds) OVER w AS to_delay
-    FROM rt_trip_updates_deduped d
-    WINDOW w AS (PARTITION BY d.trip_instance_id ORDER BY d.stop_sequence)
-)
-SELECT
-    w.trip_instance_id,
-    w.trip_id,
-    r.route_short_name,
-    w.route_id,
-    w.from_seq,
-    w.to_seq,
-    rs.seg_length AS segment_length_m,
-    rs.seg_geom,
-    EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) AS scheduled_seconds,
-    EXTRACT(EPOCH FROM (w.to_arrival - w.from_arrival)) AS actual_seconds,
-    (w.to_delay - w.from_delay) AS segment_delay_change,
-    (EXTRACT(EPOCH FROM (w.to_arrival - w.from_arrival)) - 
-     EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time))) / 60.0 AS segment_delay_minutes,
-    EXTRACT(hour FROM w.from_arrival) AS hour_of_day,
-    EXTRACT(dow FROM w.from_arrival) AS day_of_week,
-    CASE 
-        WHEN EXTRACT(dow FROM w.from_arrival) IN (0, 6) THEN 'Weekend'
-        ELSE 'Weekday'
-    END AS day_type,
-    CASE
-        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 7 AND 9 THEN 'Morning Rush'
-        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 16 AND 18 THEN 'Evening Rush'
-        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 9 AND 16 THEN 'Midday'
-        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 18 AND 22 THEN 'Evening'
-        ELSE 'Night'
-    END AS time_period
-FROM with_next w
-JOIN route_segments rs 
-    ON rs.trip_id = w.trip_id 
-    AND rs.stop1_sequence = w.from_seq
-LEFT JOIN routes r ON r.route_id = w.route_id
-WHERE w.to_arrival IS NOT NULL
-  AND rs.seg_length > 10
-  AND EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) > 0
-  AND EXTRACT(EPOCH FROM (w.to_arrival - w.from_arrival)) > 0;
-\end{lstlisting}
-
-A partir de esta vista se generan:
-
-\begin{itemize}
-  \item mapas de los “peores” segmentos en términos de demora promedio,
-  \item gráficos por hora, tipo de día y severidad de la demora.
-\end{itemize}
-
-\begin{figure}[H]
-  \centering
-  \includegraphicsifexists[width=0.75\textwidth]{%
-    ../realtime_analysis/queries/results/delay_segments/worst_segments.png}
-  \caption{Segmentos con mayores demoras promedio.}
-  \label{fig:realtime-worst-segments}
-\end{figure}
-
-La cartografía de segmentos problemáticos, combinada con gráficos de distribución
-por franja horaria, permite identificar cuellos de botella recurrentes donde la
-operación se degrada sistemáticamente respecto del plan.
+El mapa permite ubicar espacialmente los puntos donde el sistema opera de forma
+mayormente puntual (en verde) frente a corredores donde predominan los retrasos
+o adelantos marcados. Los gráficos muestran una cola hacia valores positivos que
+indica predominio de demoras por encima del horario programado, especialmente
+en horas pico y en determinadas rutas troncales.
 
 \subsection{Regularidad de headways y \emph{bus bunching}}
 
-El análisis de headways se basa en la vista materializada
-\texttt{realtime\_headway\_stats}, que calcula los intervalos entre vehículos
-consecutivos en una misma parada y ruta. Un fragmento de la consulta es:
+El análisis de headways calcula los intervalos entre vehículos consecutivos en una
+misma parada y ruta. La vista materializada permite clasificar estos intervalos en
+categorías de regularidad y detectar fenómenos de \emph{bus bunching}.
 
 \begin{lstlisting}[language=SQL]
 DROP MATERIALIZED VIEW IF EXISTS realtime_headway_stats;
@@ -1070,18 +873,8 @@ WHERE prev_arrival IS NOT NULL
   AND EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) < 7200;
 \end{lstlisting}
 
-El script \texttt{headway\_analysis.py}
-utiliza esta vista para clasificar los intervalos como:
-
-\begin{itemize}
-  \item \textbf{Bunched} (\(<3\) minutos): vehículos demasiado próximos.
-  \item \textbf{Good} (3--10 minutos): intervalo deseable en rutas frecuentes.
-  \item \textbf{Acceptable} (10--20 minutos): servicio menos frecuente pero razonable.
-  \item \textbf{Gap} (\(>20\) minutos): esperas prolongadas.
-\end{itemize}
-
-La Figura~\ref{fig:realtime-headway-dist} muestra la distribución de headways
-obtenida a partir de los registros realtime.
+La regularidad del servicio se visualiza a través de la distribución de headways
+y su clasificación por categorías:
 
 \begin{figure}[H]
   \centering
@@ -1091,25 +884,46 @@ obtenida a partir de los registros realtime.
   \label{fig:realtime-headway-dist}
 \end{figure}
 
-Otros gráficos (no mostrados aquí) exploran la proporción de headways en cada
-categoría por ruta y por periodo del día, permitiendo cuantificar la incidencia
-del \emph{bus bunching} y de las brechas de servicio prolongadas.
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.75\textwidth]{%
+    ../realtime_analysis/queries/results/headway_analysis/headway_categories.png}
+  \caption{Proporción de headways por categoría de regularidad.}
+  \label{fig:realtime-headway-categories}
+\end{figure}
 
-\section{Discusión y trabajo futuro}
+Los gráficos muestran la distribución de intervalos entre vehículos y la
+proporción de headways en cada categoría por ruta y por periodo del día, lo que
+permite cuantificar la incidencia del \emph{bus bunching} y de las brechas de
+servicio prolongadas.
 
-El pipeline desarrollado permite integrar datos GTFS estáticos y GTFS-Realtime en
-una única base de datos espacial y reproducir de forma sistemática una serie de
-consultas y visualizaciones sobre la red de transporte de Vancouver.
-La separación clara entre scripts de ingesta, consultas SQL y scripts de
-visualización facilita la extensión del análisis a nuevas ciudades o a períodos
-de tiempo adicionales.
+\section{Discusión de resultados}
 
-Como trabajo futuro se identifican varias líneas de avance: incorporar análisis
-de robustez ante fallas (por ejemplo, cierres de estaciones), extender las métricas
-de confiabilidad al nivel de pasajero (tiempos puerta a puerta) e integrar datos
-de demanda (conteos o validaciones) para estudiar la relación entre oferta,
-congestión y ocupación vehicular.
+En los análisis estáticos se observa una red con alta concentración de rutas y
+segmentos en el centro de Vancouver, donde también se registran mayores niveles
+de densidad poblacional y de oferta de transporte por segmento. Los mapas de
+velocidad programada permiten diferenciar corredores rápidos de tramos
+particularmente lentos, mientras que la superposición con la densidad
+poblacional muestra que algunas áreas densas en zonas periféricas presentan
+menor longitud de recorridos cercanos por unidad de superficie.
+
+En torno a los estadios, los mapas y gráficos de proximidad indican que los
+recintos céntricos disponen de mayor cantidad de paradas cercanas y de más
+viajes diarios, y que existen rutas específicas que conectan estos puntos de
+interés con las áreas de mayor densidad poblacional. Los estadios ubicados en
+zonas residenciales o periféricas se asocian en general con menos población
+conectada y con una red de segmentos de tránsito menos intensa.
+
+Los resultados con datos en tiempo real muestran que, aunque muchos segmentos
+mantienen velocidades cercanas a las programadas, existen corredores donde la
+velocidad observada es sistemáticamente menor o mayor que la prevista. Los
+mapas y distribuciones de demoras por parada evidencian una cola hacia valores
+positivos, con retrasos concentrados en ciertos corredores y horarios.
+
+Finalmente, el análisis de headways revela una mezcla de intervalos “bunched”,
+regulares y con grandes brechas, cuya distribución varía según la ruta y el
+periodo del día. En conjunto, los resultados estáticos y en tiempo real ofrecen
+una imagen integrada de la estructura de la red, su relación con la densidad
+poblacional y el desempeño operativo observado durante el periodo analizado.
 
 \end{document}
-
-

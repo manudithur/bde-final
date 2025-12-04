@@ -40,3 +40,6 @@ node_modules/
 *.html
 
 *.txt
+*.toc
+*.aux
+*.out

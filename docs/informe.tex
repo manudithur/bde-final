@@ -392,7 +392,24 @@ mientras que la mayoría opera con menor frecuencia, típicamente en zonas perif
 
 Para estudiar la superposición de recorridos sobre el espacio urbano se construye 
 una vista materializada de densidad de rutas por segmento (\texttt{segment\_route\_density})
-basada en \texttt{route\_segments}. El script \texttt{route\_density\_analysis.py}
+basada en \texttt{route\_segments}. Un fragmento simplificado de la definición es:
+
+\begin{lstlisting}[language=SQL]
+DROP MATERIALIZED VIEW IF EXISTS segment_route_density;
+CREATE MATERIALIZED VIEW segment_route_density AS
+SELECT
+  stop1_id || stop2_id AS segment_id,
+  seg_geom,
+  COUNT(DISTINCT route_id) AS num_routes
+FROM route_segments
+WHERE seg_geom IS NOT NULL
+GROUP BY stop1_id, stop2_id, seg_geom;
+\end{lstlisting}
+
+En la implementación final esta lógica se encapsula en las consultas de
+\texttt{static\_analysis/queries/sql/} y se materializa junto con el resto de
+vistas al ejecutar \texttt{static\_analysis/queries/run\_all\_analyses.py}.
+El script \texttt{route\_density\_analysis.py}
 resume esta información y genera un histograma de densidad
 (Figura~\ref{fig:route-density-hist}), mientras que la vista se utiliza como capa
 en QGIS para construir el mapa de la Figura~\ref{fig:route-density-map}.
@@ -424,7 +441,25 @@ principalmente en verde, con menor superposición de recorridos.
 
 La velocidad promedio por segmento y por ruta se obtiene combinando \texttt{route\_segments}
 con los horarios de llegada previstos, y se materializa en una vista de segmentos
-con velocidad programada (\texttt{qgis\_speed\_segments}). A partir de esta vista:
+con velocidad programada. Un esquema básico de cálculo de velocidades a partir de
+los horarios es:
+
+\begin{lstlisting}[language=SQL]
+DROP MATERIALIZED VIEW IF EXISTS schedule_speeds;
+CREATE MATERIALIZED VIEW schedule_speeds AS
+SELECT 
+  s.route_id || stop1_sequence || stop2_sequence AS id,
+  AVG(seg_length / EXTRACT(EPOCH FROM 
+      (stop2_arrival_time - stop1_arrival_time)) * 3.6) AS speed_kmh,
+  seg_geom
+FROM route_segments s
+WHERE stop2_arrival_time <> stop1_arrival_time
+  AND seg_length > 0
+GROUP BY s.route_id, stop1_sequence, stop2_sequence, seg_geom;
+\end{lstlisting}
+
+Sobre esta base se construye la vista \texttt{qgis\_speed\_segments}, que agrega
+estadísticas por ruta y filtra los segmentos inválidos. A partir de esta vista:
 
 \begin{itemize}
   \item QGIS genera mapas de velocidad promedio sobre la red
@@ -472,6 +507,49 @@ Para relacionar la oferta de transporte con la demanda potencial se incorporan
 se construye una capa de densidad poblacional y una superposición con la red de
 transporte utilizando las vistas \texttt{population\_density} y
 \texttt{qgis\_population\_transit\_overlay}.
+
+Un esquema simplificado de la superposición entre densidad y recorridos es:
+
+\begin{lstlisting}[language=SQL]
+CREATE MATERIALIZED VIEW qgis_population_transit_overlay AS
+WITH population_areas AS (
+  SELECT
+    id,
+    geom,
+    population_density,
+    CAST(pop AS double precision) AS population,
+    CAST(a AS double precision) AS area_km2
+  FROM population_density
+  WHERE geom IS NOT NULL
+    AND population_density IS NOT NULL
+),
+bus_route_segments AS (
+  SELECT DISTINCT
+    rs.stop1_id || rs.stop2_id AS segment_id,
+    rs.seg_geom
+  FROM route_segments rs
+  JOIN routes r ON rs.route_id = r.route_id
+  WHERE r.route_type = '3'
+    AND rs.seg_geom IS NOT NULL
+)
+SELECT 
+  pa.id,
+  pa.population_density,
+  COUNT(DISTINCT brs.segment_id) AS num_segments,
+  COALESCE(SUM(ST_Length(
+      ST_Intersection(pa.geom, brs.seg_geom)::geography)) / 1000, 0) AS route_length_km,
+  pa.area_km2,
+  route_length_km / NULLIF(pa.area_km2, 0) AS route_density_km_per_km2,
+  pa.geom
+FROM population_areas pa
+LEFT JOIN bus_route_segments brs 
+  ON ST_Intersects(pa.geom, brs.seg_geom)
+GROUP BY pa.id, pa.population_density, pa.geom, pa.area_km2;
+\end{lstlisting}
+
+Estas consultas se ejecutan automáticamente al correr
+\texttt{static\_analysis/queries/run\_all\_analyses.py}, que primero crea las
+vistas materializadas y luego genera los gráficos.
 
 \begin{figure}[H]
   \centering
@@ -526,6 +604,36 @@ de colectivo dentro de un radio de 600~m (consistente en todo el trabajo).
 Las vistas \texttt{qgis\_stadiums} y \texttt{qgis\_stadium\_proximity} alimentan
 los mapas y gráficos de esta sección.
 
+La tabla de estadios y una vista básica de proximidad pueden definirse como:
+
+\begin{lstlisting}[language=SQL]
+CREATE TABLE IF NOT EXISTS football_stadiums (
+  id serial PRIMARY KEY,
+  name text NOT NULL,
+  team text,
+  latitude float,
+  longitude float,
+  geom geometry(Point, 4326)
+);
+
+CREATE MATERIALIZED VIEW qgis_stadium_proximity AS
+SELECT 
+  s.name AS stadium_name,
+  s.team,
+  st.stop_id,
+  st.stop_name,
+  ST_DistanceSphere(s.geom, st.stop_loc::geometry) AS distance_m,
+  st.stop_loc::geometry AS geom
+FROM football_stadiums s
+JOIN stops st 
+  ON ST_DistanceSphere(s.geom, st.stop_loc::geometry) <= 600;
+\end{lstlisting}
+
+En el proyecto, \texttt{static\_analysis/queries/sql/08\_stadium\_proximity.sql}
+contiene una versión extendida de esta consulta, y el script
+\texttt{stadium\_proximity\_analysis.py} utiliza la vista materializada
+correspondiente para generar los gráficos.
+
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.8\textwidth]{%
@@ -569,6 +677,42 @@ construye la vista \texttt{qgis\_stadium\_population\_overlay}, que mide cuánta
 intensa es la red de segmentos que realiza esa conexión. La consulta
 \texttt{13\_stadium\_density\_connecting\_routes.sql} devuelve las rutas completas
 que vinculan estadios con áreas de alta densidad, usadas como capa en QGIS.
+
+Un fragmento representativo de la agregación de conectividad por estadio es:
+
+\begin{lstlisting}[language=SQL]
+WITH stadium_connectivity_stats AS (
+  SELECT 
+    s.id AS stadium_id,
+    s.name AS stadium_name,
+    s.team,
+    s.geom AS stadium_geom,
+    COUNT(DISTINCT stc.density_area_id) AS num_high_density_areas_connected,
+    COALESCE(SUM(stc.population), 0) AS total_population_connected,
+    COALESCE(SUM(rs.total_route_segments), 0) AS total_connecting_segments,
+    COALESCE(SUM(rs.total_route_length_km), 0) AS total_route_length_km
+  FROM football_stadiums s
+  LEFT JOIN stadium_to_density_connectivity stc 
+    ON s.id = stc.stadium_id
+  LEFT JOIN route_statistics rs 
+    ON stc.route_id = rs.route_id
+  GROUP BY s.id, s.name, s.team, s.geom
+)
+CREATE MATERIALIZED VIEW qgis_stadium_population_overlay AS
+SELECT
+  stadium_name,
+  team,
+  num_high_density_areas_connected,
+  total_population_connected,
+  total_connecting_segments,
+  total_route_length_km,
+  stadium_geom AS geom
+FROM stadium_connectivity_stats;
+\end{lstlisting}
+
+De forma análoga, \texttt{13\_stadium\_density\_connecting\_routes.sql} agrupa
+todos los segmentos de cada ruta conectora usando \texttt{ST\_Collect} para
+obtener una geometría de recorrido completa que luego se utiliza en QGIS.
 
 \begin{figure}[H]
   \centering
@@ -626,7 +770,48 @@ programados en \texttt{scheduled\_trips\_mdb}.
 
 La comparación de velocidades se realiza mediante la vista materializada
 \texttt{realtime\_speed\_comparison}, que calcula las velocidades programadas
-y observadas para cada segmento. A partir de esta vista se generan tanto
+y observadas para cada segmento. Un esquema simplificado de la consulta es:
+
+\begin{lstlisting}[language=SQL]
+DROP MATERIALIZED VIEW IF EXISTS realtime_speed_comparison;
+CREATE MATERIALIZED VIEW realtime_speed_comparison AS
+WITH with_next_stop AS (
+    SELECT
+        d.trip_instance_id,
+        d.trip_id,
+        d.route_id,
+        d.service_date,
+        d.stop_sequence,
+        d.stop_id,
+        d.actual_arrival,
+        LEAD(d.stop_sequence) OVER w AS next_stop_sequence,
+        LEAD(d.stop_id) OVER w AS next_stop_id,
+        LEAD(d.actual_arrival) OVER w AS next_actual_arrival
+    FROM rt_trip_updates_deduped d
+    WINDOW w AS (PARTITION BY d.trip_instance_id ORDER BY d.stop_sequence)
+)
+SELECT
+    w.trip_instance_id,
+    w.trip_id,
+    r.route_short_name,
+    w.route_id,
+    rs.seg_length AS segment_length_m,
+    EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) AS scheduled_seconds,
+    EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)) AS actual_seconds,
+    (rs.seg_length / NULLIF(EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)), 0) * 3.6) AS scheduled_speed_kmh,
+    (rs.seg_length / NULLIF(EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)), 0) * 3.6) AS actual_speed_kmh
+FROM with_next_stop w
+JOIN route_segments rs
+    ON rs.trip_id = w.trip_id
+    AND rs.stop1_sequence = w.stop_sequence
+LEFT JOIN routes r ON r.route_id = w.route_id
+WHERE w.next_actual_arrival IS NOT NULL
+  AND rs.seg_length > 10
+  AND EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) > 0
+  AND EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)) > 0;
+\end{lstlisting}
+
+A partir de esta vista se generan tanto
 mapas como gráficos:
 
 \begin{itemize}
@@ -670,7 +855,43 @@ marcadamente más lentos que el plan.
 
 La comparación de horarios programados vs.\ observados se realiza mediante la vista
 materializada \texttt{realtime\_schedule\_times}, que registra para cada parada la
-hora prevista y la hora efectivamente observada. A partir de esta vista se construye
+hora prevista y la hora efectivamente observada. Un fragmento representativo es:
+
+\begin{lstlisting}[language=SQL]
+DROP MATERIALIZED VIEW IF EXISTS realtime_schedule_times;
+CREATE MATERIALIZED VIEW realtime_schedule_times AS
+SELECT
+    d.trip_instance_id,
+    d.trip_id,
+    r.route_short_name,
+    r.route_long_name,
+    d.route_id,
+    d.service_date,
+    d.stop_sequence,
+    d.stop_id,
+    s.stop_name,
+    ts.arrival_time AS scheduled_arrival_interval,
+    d.actual_arrival,
+    d.actual_departure,
+    d.arrival_delay_seconds,
+    d.departure_delay_seconds,
+    d.arrival_delay_seconds / 60.0 AS delay_minutes,
+    EXTRACT(hour FROM d.actual_arrival) AS hour_of_day,
+    EXTRACT(dow FROM d.actual_arrival) AS day_of_week,
+    CASE 
+        WHEN EXTRACT(dow FROM d.actual_arrival) IN (0, 6) THEN 'Weekend'
+        ELSE 'Weekday'
+    END AS day_type
+FROM rt_trip_updates_deduped d
+JOIN routes r ON r.route_id = d.route_id
+LEFT JOIN stops s ON s.stop_id = d.stop_id
+LEFT JOIN transit_stops ts 
+    ON ts.trip_id = d.trip_id 
+    AND ts.stop_sequence = d.stop_sequence
+WHERE d.arrival_delay_seconds IS NOT NULL;
+\end{lstlisting}
+
+A partir de esta vista se construye
 un mapa de puntualidad y varios gráficos agregados.
 
 \begin{figure}[H]
@@ -706,8 +927,68 @@ determinadas rutas troncales.
 
 El análisis de demoras por segmento se basa en la vista materializada
 \texttt{realtime\_delay\_analysis}, que compara para cada tramo entre paradas
-el tiempo programado con el tiempo efectivamente observado. A partir de esta
-vista se generan:
+el tiempo programado con el tiempo efectivamente observado. La estructura básica
+de la vista es:
+
+\begin{lstlisting}[language=SQL]
+DROP MATERIALIZED VIEW IF EXISTS realtime_delay_analysis;
+CREATE MATERIALIZED VIEW realtime_delay_analysis AS
+WITH with_next AS (
+    SELECT
+        d.trip_instance_id,
+        d.trip_id,
+        d.route_id,
+        d.service_date,
+        d.stop_sequence AS from_seq,
+        d.stop_id AS from_stop_id,
+        d.actual_arrival AS from_arrival,
+        d.arrival_delay_seconds AS from_delay,
+        LEAD(d.stop_sequence) OVER w AS to_seq,
+        LEAD(d.stop_id) OVER w AS to_stop_id,
+        LEAD(d.actual_arrival) OVER w AS to_arrival,
+        LEAD(d.arrival_delay_seconds) OVER w AS to_delay
+    FROM rt_trip_updates_deduped d
+    WINDOW w AS (PARTITION BY d.trip_instance_id ORDER BY d.stop_sequence)
+)
+SELECT
+    w.trip_instance_id,
+    w.trip_id,
+    r.route_short_name,
+    w.route_id,
+    w.from_seq,
+    w.to_seq,
+    rs.seg_length AS segment_length_m,
+    rs.seg_geom,
+    EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) AS scheduled_seconds,
+    EXTRACT(EPOCH FROM (w.to_arrival - w.from_arrival)) AS actual_seconds,
+    (w.to_delay - w.from_delay) AS segment_delay_change,
+    (EXTRACT(EPOCH FROM (w.to_arrival - w.from_arrival)) - 
+     EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time))) / 60.0 AS segment_delay_minutes,
+    EXTRACT(hour FROM w.from_arrival) AS hour_of_day,
+    EXTRACT(dow FROM w.from_arrival) AS day_of_week,
+    CASE 
+        WHEN EXTRACT(dow FROM w.from_arrival) IN (0, 6) THEN 'Weekend'
+        ELSE 'Weekday'
+    END AS day_type,
+    CASE
+        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 7 AND 9 THEN 'Morning Rush'
+        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 16 AND 18 THEN 'Evening Rush'
+        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 9 AND 16 THEN 'Midday'
+        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 18 AND 22 THEN 'Evening'
+        ELSE 'Night'
+    END AS time_period
+FROM with_next w
+JOIN route_segments rs 
+    ON rs.trip_id = w.trip_id 
+    AND rs.stop1_sequence = w.from_seq
+LEFT JOIN routes r ON r.route_id = w.route_id
+WHERE w.to_arrival IS NOT NULL
+  AND rs.seg_length > 10
+  AND EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) > 0
+  AND EXTRACT(EPOCH FROM (w.to_arrival - w.from_arrival)) > 0;
+\end{lstlisting}
+
+A partir de esta vista se generan:
 
 \begin{itemize}
   \item mapas de los “peores” segmentos en términos de demora promedio,
@@ -730,7 +1011,66 @@ operación se degrada sistemáticamente respecto del plan.
 
 El análisis de headways se basa en la vista materializada
 \texttt{realtime\_headway\_stats}, que calcula los intervalos entre vehículos
-consecutivos en una misma parada y ruta. El script \texttt{headway\_analysis.py}
+consecutivos en una misma parada y ruta. Un fragmento de la consulta es:
+
+\begin{lstlisting}[language=SQL]
+DROP MATERIALIZED VIEW IF EXISTS realtime_headway_stats;
+CREATE MATERIALIZED VIEW realtime_headway_stats AS
+WITH stop_arrivals AS (
+    SELECT
+        rtu.route_id,
+        r.route_short_name,
+        rtu.stop_id,
+        s.stop_name,
+        rtu.trip_instance_id,
+        rtu.trip_id,
+        rtu.arrival_time,
+        EXTRACT(hour FROM rtu.arrival_time) AS hour_of_day,
+        EXTRACT(dow FROM rtu.arrival_time) AS day_of_week,
+        CASE 
+            WHEN EXTRACT(dow FROM rtu.arrival_time) IN (0, 6) THEN 'Weekend'
+            ELSE 'Weekday'
+        END AS day_type
+    FROM rt_trip_updates rtu
+    JOIN routes r ON r.route_id = rtu.route_id
+    LEFT JOIN stops s ON s.stop_id = rtu.stop_id
+    WHERE rtu.arrival_time IS NOT NULL
+      AND rtu.stop_id IS NOT NULL
+),
+with_prev AS (
+    SELECT
+        *,
+        LAG(arrival_time) OVER (
+            PARTITION BY route_id, stop_id
+            ORDER BY arrival_time
+        ) AS prev_arrival,
+        LAG(trip_instance_id) OVER (
+            PARTITION BY route_id, stop_id
+            ORDER BY arrival_time
+        ) AS prev_trip_instance_id
+    FROM stop_arrivals
+)
+SELECT
+    route_id,
+    route_short_name,
+    stop_id,
+    stop_name,
+    trip_instance_id,
+    prev_trip_instance_id,
+    arrival_time,
+    prev_arrival,
+    EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) / 60.0 AS headway_minutes,
+    hour_of_day,
+    day_of_week,
+    day_type
+FROM with_prev
+WHERE prev_arrival IS NOT NULL
+  AND trip_instance_id != prev_trip_instance_id
+  AND EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) > 0
+  AND EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) < 7200;
+\end{lstlisting}
+
+El script \texttt{headway\_analysis.py}
 utiliza esta vista para clasificar los intervalos como:
 
 \begin{itemize}

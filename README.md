@@ -42,6 +42,12 @@ pip install -r requirements.txt
 pip install -r static_analysis/requirements.txt
 pip install -r realtime_analysis/requirements.txt
 ```
+**GDAL prerequisite for `rasterio` / `contextily`:**
+- Preferred (all OS via conda-forge):  
+  ```bash
+  conda install -c conda-forge gdal rasterio contextily
+  ```
+```
 
 ### External Tools
 - `gtfs-to-sql` (install via npm): `npm install -g gtfs-via-postgres`
@@ -84,26 +90,25 @@ This should return version numbers for both extensions if they're properly insta
    python static_analysis/data/download_population_data.py \
      --geo static_analysis/data/population/vancouver_geo.geojson
    ```
-   This imports census tract geometries and a `population_areas` table with a `population_density` column for Vancouver, used by the static population‑density analyses.
+   This imports census tract geometries and a `population_density` table for Vancouver, used by the static population‑density analyses.
 
 5. **Run static analysis SQL & visualizations**
    ```bash
-   cd static_analysis/queries
-   # Run all analyses at once (creates materialized views + graphs)
-   python run_all_analyses.py
+   python static_analysis/queries/run_all_analyses.py
    ```
    This will:
-   - Build all materialized views defined in `static_analysis/queries/sql/*.sql` (tables/views prefixed with `qgis_`), which can be loaded directly into QGIS.
+   - Execute `static_analysis/queries/sql/*.sql` to build materialized views used by the visualizations.
    - Generate PNG graph visualizations into `static_analysis/queries/results/` organized by analysis type.
-
+ 
    **Run individual visualization scripts (optional):**
    ```bash
    cd static_analysis/queries/visualizations
-   python route_visualization.py            # Route statistics graphs
-   python route_density_analysis.py         # Route density histograms
-   python speed_analysis.py                 # Speed analysis graphs
-   python population_density_analysis.py    # Population vs transit coverage graphs
-   python stadium_proximity_analysis.py     # Stadium proximity graphs
+   python route_visualization.py          # Route statistics graphs
+   python route_density_analysis.py       # Route density histograms
+   python speed_analysis.py               # Speed analysis graphs
+   python stadium_proximity_analysis.py   # Stadium proximity graphs
+   python population_density_analysis.py  # Population vs transit coverage graphs
+   python stadium_population_analysis.py  # Stadium vs population coverage graphs
    ```
    
    **Visualization Scripts:**
@@ -115,9 +120,7 @@ This should return version numbers for both extensions if they're properly insta
    
    **Outputs:**
    - All results are saved to `static_analysis/queries/results/` organized by analysis type.
-   - Map visualizations are created manually in QGIS using the `qgis_*` materialized views created by `static_analysis/queries/sql/run_sql.py`.
-   - Statistical charts: route statistics, speed distributions, route density histograms, population vs transit coverage, stadium proximity summaries.
-   - See `static_analysis/queries/results/README.md` for list of generated result files.
+   - Statistical charts: route statistics, speed distributions, route density histograms, stadium proximity summaries.
    
    **Requirements:**
    - Database connection (via environment variables: `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`)
@@ -173,14 +176,12 @@ This should return version numbers for both extensions if they're properly insta
 
 5. **Run realtime analysis SQL & visualizations**
    ```bash
-   cd realtime_analysis/queries
-   # Run all analyses at once (creates materialized views + graphs)
-   python run_all_analyses.py
+   python -m realtime_analysis.queries.run_all_analyses
    ```
    This will:
-   - Execute `realtime_analysis/queries/sql/realtime_queries.sql` and other SQL files in `realtime_analysis/queries/sql/` to create base materialized views (`realtime_*`) and QGIS‑friendly views (`qgis_realtime_*`).
+   - Execute `realtime_analysis/queries/sql/realtime_queries.sql` to create base materialized views (`realtime_*`).
    - Generate PNG graph visualizations into `realtime_analysis/queries/results/` organized by analysis type.
-
+ 
    **Run individual visualization scripts (optional):**
    ```bash
    cd realtime_analysis/queries/visualizations

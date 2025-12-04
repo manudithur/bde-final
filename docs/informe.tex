@@ -170,6 +170,9 @@ Antes de ejecutar cualquier comando, asegurarse de que:
   \item Las variables de entorno de conexión están exportadas (ver sección anterior).
 \end{itemize}
 
+Para un listado completo de prerrequisitos (incluyendo instalación de GDAL/rasterio/contextily),
+revisar la sección \textbf{Prerequisites} del \href{../README.md}{README.md} del proyecto.
+
 Se puede verificar la conexión y las extensiones con:
 
 \begin{lstlisting}[language=bash]
@@ -229,8 +232,7 @@ Las vistas materializadas y las gráficas de análisis se generan con un único
 comando que orquesta las consultas SQL y los scripts de visualización:
 
 \begin{lstlisting}[language=bash]
-cd static_analysis/queries
-python run_all_analyses.py
+python static_analysis/queries/run_all_analyses.py
 \end{lstlisting}
 
 Este comando:
@@ -253,7 +255,6 @@ organizados por tipo de análisis.
 Instalar dependencias adicionales y configurar la API de TransLink:
 
 \begin{lstlisting}[language=bash]
-pip install -r realtime_analysis/requirements.txt
 export TRANSLINK_GTFSR_API_KEY="your-translink-api-key"
 \end{lstlisting}
 
@@ -266,7 +267,7 @@ cat realtime_analysis/data_loading/realtime_schema.sql \
 
 \subsubsection{Ingesta de feeds GTFS-Realtime}
 
-Ejecutar el proceso de ingesta durante un intervalo de tiempo:
+Ejecutar el proceso de ingesta durante un intervalo de tiempo desde el root del repositorio:
 
 \begin{lstlisting}[language=bash]
 python -m realtime_analysis.data.ingest_realtime \
@@ -297,8 +298,7 @@ generan de forma análoga al flujo estático, a través de un único script
 orquestador:
 
 \begin{lstlisting}[language=bash]
-cd realtime_analysis/queries
-python run_all_analyses.py
+python -m realtime_analysis.queries.run_all_analyses
 \end{lstlisting}
 
 Este comando ejecuta los archivos SQL de \texttt{realtime\_analysis/queries/sql/},

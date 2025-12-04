@@ -260,7 +260,7 @@ export TRANSLINK_GTFSR_API_KEY="your-translink-api-key"
 Crear las tablas necesarias para datos realtime:
 
 \begin{lstlisting}[language=bash]
-cat realtime_analysis/realtime_schema.sql \
+cat realtime_analysis/data_loading/realtime_schema.sql \
   | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
 \end{lstlisting}
 
@@ -283,7 +283,7 @@ A partir de los puntos GPS se construyen trayectorias \emph{map-matched} sobre l
 recorridos estáticos:
 
 \begin{lstlisting}[language=bash]
-python -m realtime_analysis.build_realtime_trajectories
+python -m realtime_analysis.data.build_realtime_trajectories
 \end{lstlisting}
 
 Las trayectorias resultantes se almacenan en \texttt{realtime\_trips\_mdb}.
@@ -368,8 +368,8 @@ Se presentan a continuación el mapa completo de la red y la distribución de vi
 \end{figure}
 
 El mapa evidencia una red especialmente densa en el centro de Vancouver y en
-los corredores troncales hacia el este y el sur. El gráfico de barras muestra
-que un subconjunto reducido de rutas concentra gran parte de los viajes diarios,
+los corredores troncales hacia el este y el sur. Podemos ver el color amarillo abundante en el mapa, lo cual nos indica que las únicas rutas para analizar son las de buses. Por eso, nuestros análisis estarán restringidos a las rutas de buses.
+El gráfico de barras muestra que un subconjunto reducido de rutas concentra gran parte de los viajes diarios,
 mientras que la mayoría opera con menor frecuencia, típicamente en zonas periféricas.
 
 \subsection{Densidad de rutas por segmento}
@@ -451,7 +451,7 @@ A continuación se muestran los mapas de velocidad sobre la red y el histograma 
   \centering
   \includegraphicsifexists[width=0.8\textwidth]{%
     ../static_analysis/queries/results/speed_analysis/speed_analysis_map_slow_zone.png}
-  \caption{Detalle de zonas particularmente lentas en la red de segmentos.}
+  \caption{Detalle de zona más céntrica de la ciudad (más congestión).}
   \label{fig:speed-map-slow}
 \end{figure}
 
@@ -580,7 +580,7 @@ El análisis de proximidad produce los siguientes mapas y gráficos de oferta:
   \centering
   \includegraphicsifexists[width=0.8\textwidth]{%
     ../static_analysis/queries/results/stadium_proximity/stadium_map.png}
-  \caption{Mapa de estadios y red de paradas y rutas en un radio de 600~m.}
+  \caption{Mapa de estadios (naranja) y red de paradas (violeta) en un radio de 600~m.}
   \label{fig:stadium-map}
 \end{figure}
 
@@ -605,6 +605,8 @@ de paradas y rutas de colectivo, mientras que otros recintos presentan menor
 densidad de servicio en su entorno inmediato. El gráfico de barras confirma
 que los estadios céntricos reciben significativamente más viajes diarios que
 aquellos ubicados en zonas residenciales o periféricas.
+
+Es interesante ver que aunque BC Place y Rogers Arena se encuentran muy cerca, su pequeña diferencia en distancia hace que BC Place reciba muchos menos viajes diarios.
 
 \subsection{Conectividad entre estadios y áreas de alta densidad}
 
@@ -669,8 +671,8 @@ materializan esas conexiones sobre la red de transporte.
 Los análisis sobre datos en tiempo real se basan en las trayectorias \emph{map-matched}
 almacenadas en \texttt{realtime\_trips\_mdb}, las cuales se comparan con sus equivalentes
 programados en \texttt{scheduled\_trips\_mdb}. Los resultados presentados en esta sección
-se basan en aproximadamente una hora de datos recolectados el 3 de diciembre de 2025
-entre las 11:00 y las 12:00 (hora local).
+se basan en aproximadamente una hora de datos recolectados el 3 de diciembre de 2025 (día de semana)
+entre las 10:00 y las 11:00 (hora local de Vancouver).
 
 \subsection{Velocidad real vs.\ velocidad programada}
 
@@ -742,7 +744,8 @@ de forma sistemáticamente más lenta que lo previsto (en rojo), así como tramo
 que tienden a adelantarse sobre el horario (en amarillo). El histograma de diferencias
 muestra una distribución aproximadamente unimodal, con una masa importante de segmentos
 con velocidades similares a las previstas y colas que capturan tanto episodios de
-fuerte sobreejecución como segmentos marcadamente más lentos que el plan.
+fuerte sobreejecución como segmentos marcadamente más lentos que el plan. Creemos fuertemente que
+las diferencias de velocidad se deben al horario y la congestión de la ciudad, la cual varía en función de la hora del día.
 
 \subsection{Desempeño de horarios (schedule times)}
 
@@ -808,7 +811,8 @@ El mapa permite ubicar espacialmente los puntos donde el sistema opera de forma
 mayormente puntual (en verde) frente a corredores donde predominan los retrasos
 o adelantos marcados. Los gráficos muestran una cola hacia valores positivos que
 indica predominio de demoras por encima del horario programado, especialmente
-en horas pico y en determinadas rutas troncales.
+debido a la hora de los datos y en calles troncales. Sin embargo, podemos ver 
+que los horarios se suelen cumplir con precisión, observando que la mayoría del mapa se encuentra en verde.
 
 \subsection{Regularidad de headways y \emph{bus bunching}}
 
@@ -893,9 +897,10 @@ y su clasificación por categorías:
 \end{figure}
 
 Los gráficos muestran la distribución de intervalos entre vehículos y la
-proporción de headways en cada categoría por ruta y por periodo del día, lo que
+proporción de headways en cada categoría por ruta, lo que
 permite cuantificar la incidencia del \emph{bus bunching} y de las brechas de
-servicio prolongadas.
+servicio prolongadas. Debido a la hora de los datos, creemos que el headway analizado es representativo
+del servicio un día normal de semana.
 
 \section{Discusión de resultados}
 
@@ -905,25 +910,33 @@ de densidad poblacional y de oferta de transporte por segmento. Los mapas de
 velocidad programada permiten diferenciar corredores rápidos de tramos
 particularmente lentos, mientras que la superposición con la densidad
 poblacional muestra que algunas áreas densas en zonas periféricas presentan
-menor longitud de recorridos cercanos por unidad de superficie.
+menor longitud de recorridos cercanos por unidad de superficie. Al analizar estos datos,
+podemos observar que las rutas de bus tienden a estar distribuidas y planeadas de una manera
+muy coherente, ofreciendo mayores rutas y frecuencia en zonas con mayor densidad poblacional.
 
 En torno a los estadios, los mapas y gráficos de proximidad indican que los
 recintos céntricos disponen de mayor cantidad de paradas cercanas y de más
 viajes diarios, y que existen rutas específicas que conectan estos puntos de
 interés con las áreas de mayor densidad poblacional. Los estadios ubicados en
 zonas residenciales o periféricas se asocian en general con menos población
-conectada y con una red de segmentos de tránsito menos intensa.
+conectada y con una red de segmentos de tránsito menos intensa. En este caso, podemos ver 
+como el Pacific Coliseum, el cual se encuentra en una zona residencial, tiene menos paradas cercanas y menos viajes diarios que los estadios más céntricos.
 
 Los resultados con datos en tiempo real muestran que, aunque muchos segmentos
 mantienen velocidades cercanas a las programadas, existen corredores donde la
-velocidad observada es sistemáticamente menor o mayor que la prevista. Los
+velocidad observada es sistemáticamente menor o mayor que la prevista. El horario y dia elegido para el analisis es un buena muestra
+representativa del servicio funcionando normalmente en un horario de trabajo. Los
 mapas y distribuciones de demoras por parada evidencian una cola hacia valores
-positivos, con retrasos concentrados en ciertos corredores y horarios.
+positivos, con retrasos concentrados en ciertos corredores y horarios. Sin embargo, además de que estas diferencias
+inevitablemente variarán dependiendo la hora del día, podemos observar que aún con muchos tramos 
+no cumpliendo con la velocidad programada, el horario se suele cumplir con precisión.
 
-Finalmente, el análisis de headways revela una mezcla de intervalos “bunched”,
-regulares y con grandes brechas, cuya distribución varía según la ruta y el
-periodo del día. En conjunto, los resultados estáticos y en tiempo real ofrecen
+Finalmente, el análisis de headways revela una mezcla de intervalos "bunched",
+regulares y con grandes brechas, cuya distribución varía según la ruta. Estos datos presentan la información de que
+la mayoría de los buses tienden a circular de forma regular muy regular, con alrededor de 6 minutos de media, 
+pero con más del 60\% de los buses circulando con menos de 3 minutos de intervalo, lo cual es un buen indicador de que el servicio es eficiente.
+
+En conjunto, los resultados estáticos y en tiempo real ofrecen
 una imagen integrada de la estructura de la red, su relación con la densidad
-poblacional y el desempeño operativo observado durante el periodo analizado.
-
+poblacional y el desempeño operativo observado durante el periodo analizado. 
 \end{document}

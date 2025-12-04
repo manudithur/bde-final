@@ -341,7 +341,7 @@ def main():
         print("   1. Run the realtime ingestion (ingest_realtime.py)")
         print("   2. Built the static schedule (mobilitydb_import.sql)")
         print("   3. Run realtime_queries.sql to create materialized views:")
-        print("      cat realtime_analysis/queries/analysis/realtime_queries.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE")
+        print("      cd realtime_analysis/queries && python sql/run_sql.py")
         print("   4. Trip updates with arrival times are available")
         return 1
     

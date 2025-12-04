@@ -229,17 +229,21 @@ This should return version numbers for both extensions if they're properly insta
 │   │   ├── run_all_analyses.py  # Run SQL + all visualization scripts
 │   │   └── results/          # Output files (PNG) - see results/README.md
 ├── realtime_analysis/       # Real-time ingestion & comparison
-│   ├── realtime_schema.sql
-│   ├── ingest_realtime.py
-│   ├── build_realtime_trajectories.py
-│   ├── analyze_realtime.py
-│   ├── utils.py
-│   ├── queries/              # Realtime analysis SQL + visualizations
-│   │   ├── sql/              # SQL files building realtime & qgis_realtime_* views
-│   │   │   └── run_sql.py    # Builds all realtime materialized views
-│   │   ├── visualizations/   # Python scripts for graph visualizations (PNG)
+│   ├── data/                # Data ingestion and processing scripts
+│   │   ├── ingest_realtime.py
+│   │   └── build_realtime_trajectories.py
+│   ├── data_loading/        # Database schema setup
+│   │   └── realtime_schema.sql
+│   ├── queries/             # Realtime analysis SQL + visualizations
+│   │   ├── sql/             # SQL files building realtime & qgis_realtime_* views
+│   │   │   └── run_sql.py   # Builds all realtime materialized views
+│   │   ├── visualizations/  # Python scripts for graph visualizations (PNG)
 │   │   ├── run_all_analyses.py   # Run SQL + all visualization scripts
-│   │   └── results/          # Output files (CSV, PNG) - see results/README.md
+│   │   └── results/         # Output files (CSV, PNG) - see results/README.md
+│   ├── utility/             # Utility scripts
+│   │   ├── config.py
+│   │   └── utils.py
+│   └── requirements.txt
 ```
 
 ---

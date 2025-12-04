@@ -1,6 +1,6 @@
 -- Realtime Analysis Queries for Vancouver GTFS Realtime Data
 -- Materialized views for common realtime analysis patterns
--- Run with: cat realtime_analysis/queries/analysis/realtime_queries.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
+-- Run with: cd realtime_analysis/queries && python sql/run_sql.py
 -- IMPORTANT: Run this AFTER ingesting realtime data (step 3 of realtime workflow)
 
 -- ============================================

@@ -1,3 +1,0 @@
-# GTFS Realtime Analysis Scripts
-
-

@@ -79,43 +79,50 @@ This should return version numbers for both extensions if they're properly insta
    ```
    Requires: MobilityDB extension enabled, GTFS tables from step 2
 
-4. **Run analysis queries**
+4. **(Optional) Load population density data for Vancouver**
    ```bash
-   cat static_analysis/queries/analysis/spatial_queries.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
+   python static_analysis/data/download_population_data.py \
+     --geo static_analysis/data/population/vancouver_geo.geojson
    ```
-   Requires: `scheduled_trips_mdb` and other MobilityDB tables from step 3
+   This imports census tract geometries and a `population_areas` table with a `population_density` column for Vancouver, used by the static population‑density analyses.
 
-5. **Generate static visualizations**
+5. **Run static analysis SQL & visualizations**
    ```bash
-   cd static_analysis/queries/analysis
-   # Run all analyses at once
+   cd static_analysis/queries
+   # Run all analyses at once (creates materialized views + graphs)
    python run_all_analyses.py
-   
-   # Or run individually:
-   python visualization/route_visualization.py          # Interactive route maps
-   python visualization/route_duplication_analysis.py   # Route duplication analysis
-   python visualization/speed_analysis.py               # Speed analysis
-   python visualization/route_density_analysis.py       # Route density
-   python visualization/stadium_proximity_analysis.py   # Stadium proximity
+   ```
+   This will:
+   - Build all materialized views defined in `static_analysis/queries/sql/*.sql` (tables/views prefixed with `qgis_`), which can be loaded directly into QGIS.
+   - Generate PNG graph visualizations into `static_analysis/queries/results/` organized by analysis type.
+
+   **Run individual visualization scripts (optional):**
+   ```bash
+   cd static_analysis/queries/visualizations
+   python route_visualization.py            # Route statistics graphs
+   python route_density_analysis.py         # Route density histograms
+   python speed_analysis.py                 # Speed analysis graphs
+   python population_density_analysis.py    # Population vs transit coverage graphs
+   python stadium_proximity_analysis.py     # Stadium proximity graphs
    ```
    
    **Visualization Scripts:**
-   - **route_visualization.py** - Creates interactive route maps (all routes, by mode, density heatmap)
-   - **route_duplication_analysis.py** - Analyzes and visualizes route duplication
-   - **route_density_analysis.py** - Creates route density histograms
-   - **speed_analysis.py** - Analyzes vehicle speeds and creates speed distribution charts
-   - **stadium_proximity_analysis.py** - Analyzes transit access near stadiums and landmarks
+   - **route_visualization.py** - Route-level statistics and distributions (PNG graphs)
+   - **route_density_analysis.py** - Route density histograms (PNG)
+   - **speed_analysis.py** - Speed distributions and top routes (PNG)
+   - **population_density_analysis.py** - Population density vs transit coverage (PNG)
+   - **stadium_proximity_analysis.py** - Stadium transit access metrics (PNG)
    
    **Outputs:**
-   - All results are saved to `static_analysis/queries/results/` organized by analysis type
-   - Interactive HTML maps: route maps, route duplication maps, stadium proximity maps
-   - Statistical charts: duplication heatmaps, speed distributions, route density histograms
-   - See `static_analysis/queries/results/README.md` for list of generated result files
+   - All results are saved to `static_analysis/queries/results/` organized by analysis type.
+   - Map visualizations are created manually in QGIS using the `qgis_*` materialized views created by `static_analysis/queries/sql/run_sql.py`.
+   - Statistical charts: route statistics, speed distributions, route density histograms, population vs transit coverage, stadium proximity summaries.
+   - See `static_analysis/queries/results/README.md` for list of generated result files.
    
    **Requirements:**
    - Database connection (via environment variables: `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`)
    - Python dependencies from `static_analysis/requirements.txt`
-   - Materialized views from `spatial_queries.sql` (step 4 of static workflow)
+   - Static schedule tables and MobilityDB schema from steps 2–3
 
 6. **Inspect in GIS (optional)**
    - Install QGIS from https://qgis.org/
@@ -165,24 +172,23 @@ This should return version numbers for both extensions if they're properly insta
    Raw GPS points are deduplicated and snapped onto the scheduled shape before
    upserting into `realtime_trips_mdb`.
 
-5. **Run realtime analysis queries**
+5. **Run realtime analysis SQL & visualizations**
    ```bash
-   cat realtime_analysis/queries/analysis/realtime_queries.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
-   ```
-   Requires: Realtime data in `rt_trip_updates` table from step 3, `realtime_trips_mdb` from step 4, static `route_segments` table from static workflow
-   This creates materialized views for faster analysis queries. The visualization scripts will use these views if available, falling back to inline queries otherwise.
-
-7. **Run comprehensive realtime analyses**
-   ```bash
-   cd realtime_analysis/queries/analysis
-   # Run all analyses at once
+   cd realtime_analysis/queries
+   # Run all analyses at once (creates materialized views + graphs)
    python run_all_analyses.py
-   
-   # Or run individually:
-   python visualization/speed_vs_schedule_analysis.py    # Scheduled vs actual speeds
-   python visualization/schedule_times_analysis.py       # Scheduled vs actual times
-   python visualization/delay_segments_analysis.py       # Traffic/congestion patterns
-   python visualization/headway_analysis.py              # Bus bunching and headway analysis
+   ```
+   This will:
+   - Execute `realtime_analysis/queries/sql/realtime_queries.sql` and other SQL files in `realtime_analysis/queries/sql/` to create base materialized views (`realtime_*`) and QGIS‑friendly views (`qgis_realtime_*`).
+   - Generate PNG graph visualizations into `realtime_analysis/queries/results/` organized by analysis type.
+
+   **Run individual visualization scripts (optional):**
+   ```bash
+   cd realtime_analysis/queries/visualizations
+   python speed_vs_schedule_analysis.py    # Scheduled vs actual speeds
+   python schedule_times_analysis.py       # Scheduled vs actual times
+   python delay_segments_analysis.py       # Traffic/congestion patterns
+   python headway_analysis.py              # Bus bunching and headway analysis
    ```
    
    **Visualization Scripts:**
@@ -192,17 +198,15 @@ This should return version numbers for both extensions if they're properly insta
    - **headway_analysis.py** - Analyzes bus bunching and headway regularity
    
    **Outputs:**
-   - All results saved to `realtime_analysis/queries/results/` organized by analysis type
-   - Interactive HTML maps and charts (Plotly-based)
-   - CSV files with detailed metrics
-   - See `realtime_analysis/queries/results/README.md` for list of generated result files
+   - All results saved to `realtime_analysis/queries/results/` organized by analysis type (PNG graphs + CSV metrics).
+   - Map visualizations are created manually in QGIS using the `qgis_realtime_*` materialized views created by `realtime_analysis/queries/sql/run_sql.py`.
+   - See `realtime_analysis/queries/results/README.md` for list of generated result files.
    
    **Requirements:**
    - Database connection (via environment variables: `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`)
    - Python dependencies from `realtime_analysis/requirements.txt`
    - Realtime trip updates in `rt_trip_updates` table (from step 3)
    - Static schedule tables: `route_segments`, `stops`, `routes` (from static workflow)
-   - Materialized views from step 4 recommended for performance
 
 ---
 
@@ -211,37 +215,32 @@ This should return version numbers for both extensions if they're properly insta
 ```
 .
 ├── static_analysis/          # Static schedule analysis
-│   ├── data/                # GTFS download & preprocessing scripts
+│   ├── data/                 # GTFS & population download/preprocessing scripts
 │   │   ├── download_data.sh
-│   │   └── gtfs_pruned/
+│   │   ├── download_population_data.py
+│   │   ├── gtfs_pruned/
+│   │   ├── gtfs_vancouver/
+│   │   └── population/
 │   ├── data_loading/        # Database schema setup
 │   │   └── mobilitydb_import.sql
-│   ├── queries/             # Analysis queries and visualizations
-│   │   ├── analysis/        # Analysis queries and scripts
-│   │   │   ├── spatial_queries.sql  # SQL queries with materialized views
-│   │   │   ├── run_all_analyses.py  # Run all visualization scripts
-│   │   │   └── visualization/  # Python scripts for visualizing queries
-│   │   └── results/         # Output files (PNG, HTML) - see results/README.md
-│   ├── utility/             # Utility scripts
-│   │   ├── check_data.sql
-│   │   └── fix_trips_shape_id.sql
+│   ├── queries/              # Static analysis SQL + visualizations
+│   │   ├── sql/              # SQL files that build materialized views (qgis_*)
+│   │   │   └── run_sql.py    # Builds all static materialized views
+│   │   ├── visualizations/   # Python scripts for graph visualizations (PNG)
+│   │   ├── run_all_analyses.py  # Run SQL + all visualization scripts
+│   │   └── results/          # Output files (PNG) - see results/README.md
 ├── realtime_analysis/       # Real-time ingestion & comparison
-│   ├── data/                # Data ingestion and processing scripts
-│   │   ├── ingest_realtime.py
-│   │   └── build_realtime_trajectories.py
-│   ├── data_loading/        # Database schema setup
-│   │   └── realtime_schema.sql
-│   ├── queries/             # Realtime analysis queries
-│   │   ├── analysis/        # Analysis queries and scripts
-│   │   │   ├── realtime_queries.sql  # SQL queries with materialized views
-│   │   │   ├── run_all_analyses.py   # Run all visualization scripts
-│   │   │   ├── analyze_realtime.py   # Interactive analysis script
-│   │   │   └── visualization/  # Python scripts for visualizing queries
-│   │   └── results/         # Output files (HTML, CSV, PNG) - see results/README.md
-│   ├── utility/             # Utility scripts
-│   │   ├── config.py
-│   │   └── utils.py
-│   └── requirements.txt
+│   ├── realtime_schema.sql
+│   ├── ingest_realtime.py
+│   ├── build_realtime_trajectories.py
+│   ├── analyze_realtime.py
+│   ├── utils.py
+│   ├── queries/              # Realtime analysis SQL + visualizations
+│   │   ├── sql/              # SQL files building realtime & qgis_realtime_* views
+│   │   │   └── run_sql.py    # Builds all realtime materialized views
+│   │   ├── visualizations/   # Python scripts for graph visualizations (PNG)
+│   │   ├── run_all_analyses.py   # Run SQL + all visualization scripts
+│   │   └── results/          # Output files (CSV, PNG) - see results/README.md
 ```
 
 ---

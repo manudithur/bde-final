@@ -6,4 +6,9 @@ and visualization utilities used to compare Vancouver's scheduled GTFS data
 with GTFS-Realtime feeds.
 """
 
+# Re-export utility modules for backward compatibility
+from realtime_analysis.utility import config, utils
+
+__all__ = ["config", "utils"]
+
 

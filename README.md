@@ -150,13 +150,13 @@ This should return version numbers for both extensions if they're properly insta
 
 2. **Create realtime tables**
    ```bash
-   cat realtime_analysis/realtime_schema.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
+   cat realtime_analysis/data_loading/realtime_schema.sql | psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE
    ```
    Requires: Database `gtfs` with PostGIS and MobilityDB extensions enabled
 
 3. **Ingest GTFS-Realtime feeds**
    ```bash
-   python -m realtime_analysis.ingest_realtime \
+   python -m realtime_analysis.data.ingest_realtime \
      --duration-minutes 20 \
      --poll-interval 30
    ```
@@ -165,7 +165,7 @@ This should return version numbers for both extensions if they're properly insta
 
 4. **Build map-matched actual trajectories**
    ```bash
-   python -m realtime_analysis.build_realtime_trajectories --hours 2
+   python -m realtime_analysis.data.build_realtime_trajectories --hours 2
    ```
    Limit to processing data until --hours behind
    Requires: Realtime vehicle positions from step 3, scheduled_trips_mdb from static workflow

@@ -24,8 +24,8 @@ script_dir = Path(__file__).resolve()
 project_root = script_dir.parents[3]  # This is the project root (bde-final)
 sys.path.insert(0, str(project_root))
 
-from realtime_analysis.config import load_settings
-from realtime_analysis.utils import get_connection
+from realtime_analysis.utility.config import load_settings
+from realtime_analysis.utility.utils import get_connection
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results" / "delay_segments"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)

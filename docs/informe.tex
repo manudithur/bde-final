@@ -270,7 +270,7 @@ cat realtime_analysis/realtime_schema.sql \
 Ejecutar el proceso de ingesta durante un intervalo de tiempo:
 
 \begin{lstlisting}[language=bash]
-python -m realtime_analysis.ingest_realtime \
+python -m realtime_analysis.data.ingest_realtime \
   --duration-minutes 20 \
   --poll-interval 30
 \end{lstlisting}
@@ -296,7 +296,7 @@ programadas antes de insertarse en la tabla.
 Para comparar detalladamente un viaje programado vs.\ su ejecución real:
 
 \begin{lstlisting}[language=bash]
-python -m realtime_analysis.analyze_realtime \
+python -m realtime_analysis.queries.analysis.analyze_realtime \
   --route-short-name 99
 \end{lstlisting}
 

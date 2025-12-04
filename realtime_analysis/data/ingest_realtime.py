@@ -18,8 +18,8 @@ import requests
 from google.transit import gtfs_realtime_pb2
 from psycopg2.extras import execute_values
 
-from realtime_analysis.config import Settings, load_settings
-from realtime_analysis.utils import (
+from realtime_analysis.utility.config import Settings, load_settings
+from realtime_analysis.utility.utils import (
     RouteFilter,
     build_trip_instance_id,
     get_connection,

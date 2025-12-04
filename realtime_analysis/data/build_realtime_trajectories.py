@@ -10,8 +10,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Sequence
 
-from realtime_analysis.config import load_settings
-from realtime_analysis.utils import get_connection, resolve_route_filter
+from realtime_analysis.utility.config import load_settings
+from realtime_analysis.utility.utils import get_connection, resolve_route_filter
 
 LOG = logging.getLogger("realtime_analysis.build_trajs")
 

@@ -228,8 +228,13 @@ python static_analysis/data/download_population_data.py \
 
 \subsubsection{Consultas y visualizaciones estáticas}
 
-Las vistas materializadas y las gráficas de análisis se generan con un único
-comando que orquesta las consultas SQL y los scripts de visualización:
+Primero, generar las vistas materializadas necesarias para los análisis:
+
+\begin{lstlisting}[language=bash]
+python static_analysis/queries/sql/run_sql.py
+\end{lstlisting}
+
+Luego, ejecutar el orquestador que refresca las vistas y genera las gráficas:
 
 \begin{lstlisting}[language=bash]
 python static_analysis/queries/run_all_analyses.py
@@ -293,15 +298,19 @@ programadas antes de insertarse en la tabla.
 
 \subsubsection{Consultas y análisis agregados con GTFS-Realtime}
 
-Las vistas materializadas y los análisis agregados sobre datos realtime se
-generan de forma análoga al flujo estático, a través de un único script
-orquestador:
+Primero, generar las vistas materializadas para los análisis:
+
+\begin{lstlisting}[language=bash]
+python realtime_analysis/queries/sql/run_sql.py
+\end{lstlisting}
+
+Luego, ejecutar el orquestador que refresca las vistas y genera gráficos:
 
 \begin{lstlisting}[language=bash]
 python -m realtime_analysis.queries.run_all_analyses
 \end{lstlisting}
 
-Este comando ejecuta los archivos SQL de \texttt{realtime\_analysis/queries/sql/},
+El comando anterior ejecuta los archivos SQL de \texttt{realtime\_analysis/queries/sql/},
 creando vistas \texttt{realtime\_*} y vistas de visualización, y luego corre
 los scripts para producir gráficos en PNG y resúmenes en CSV.
 

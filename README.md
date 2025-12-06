@@ -92,12 +92,18 @@ This should return version numbers for both extensions if they're properly insta
    ```
    This imports census tract geometries and a `population_density` table for Vancouver, used by the static population‑density analyses.
 
-5. **Run static analysis SQL & visualizations**
+5. **Build static materialized views (required before graphs)**
+   ```bash
+   python static_analysis/queries/sql/run_sql.py
+   ```
+   Requires: GTFS tables and MobilityDB schema from steps 2–3.
+
+6. **Run static analysis visualizations**
    ```bash
    python static_analysis/queries/run_all_analyses.py
    ```
    This will:
-   - Execute `static_analysis/queries/sql/*.sql` to build materialized views used by the visualizations.
+   - Execute `static_analysis/queries/sql/*.sql` to build/refresh materialized views used by the visualizations.
    - Generate PNG graph visualizations into `static_analysis/queries/results/` organized by analysis type.
  
    **Run individual visualization scripts (optional):**
@@ -127,7 +133,7 @@ This should return version numbers for both extensions if they're properly insta
    - Python dependencies from `static_analysis/requirements.txt`
    - Static schedule tables and MobilityDB schema from steps 2–3
 
-6. **Inspect in GIS (optional)**
+7. **Inspect in GIS (optional)**
    - Install QGIS from https://qgis.org/
    - Layer → Add Layer → Add PostGIS Layer
    - Connection: Use your database credentials (Host, Port, DB `gtfs`, User, Password from environment variables)
@@ -174,13 +180,19 @@ This should return version numbers for both extensions if they're properly insta
    Raw GPS points are deduplicated and snapped onto the scheduled shape before
    upserting into `realtime_trips_mdb`.
 
-5. **Run realtime analysis SQL & visualizations**
+5. **Build realtime materialized views (required before graphs)**
+   ```bash
+   python realtime_analysis/queries/sql/run_sql.py
+   ```
+   Requires: Realtime ingestion + trajectories from steps 3–4 (tables `realtime_*`, `realtime_trips_mdb`).
+
+6. **Run realtime analysis visualizations**
    ```bash
    python -m realtime_analysis.queries.run_all_analyses
    ```
    This will:
-   - Execute `realtime_analysis/queries/sql/realtime_queries.sql` to create base materialized views (`realtime_*`).
-   - Generate PNG graph visualizations into `realtime_analysis/queries/results/` organized by analysis type.
+   - Execute `realtime_analysis/queries/sql/realtime_queries.sql` (via `run_all_analyses`) to create/refresh base materialized views (`realtime_*`).
+   - Generate PNG/CSV visualizations into `realtime_analysis/queries/results/` organized by analysis type.
  
    **Run individual visualization scripts (optional):**
    ```bash

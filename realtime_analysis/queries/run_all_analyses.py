@@ -73,7 +73,8 @@ existing results before generating new ones.
         ("Speed vs Schedule Analysis", VISUALIZATION_DIR / "speed_vs_schedule_analysis.py"),
         ("Schedule Times Analysis", VISUALIZATION_DIR / "schedule_times_analysis.py"),
         ("Delay Segments Analysis", VISUALIZATION_DIR / "delay_segments_analysis.py"),
-        ("Headway Analysis", VISUALIZATION_DIR / "headway_analysis.py")
+        ("Headway Analysis", VISUALIZATION_DIR / "headway_analysis.py"),
+        ("Dwell Time Analysis", VISUALIZATION_DIR / "dwell_time_analysis.py"),
     ]
     
     print("="*60)

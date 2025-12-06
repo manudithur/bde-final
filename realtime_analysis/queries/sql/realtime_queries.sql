@@ -325,3 +325,55 @@ CREATE INDEX IF NOT EXISTS idx_realtime_schedule_times_route
 CREATE INDEX IF NOT EXISTS idx_realtime_schedule_times_hour 
     ON realtime_schedule_times (hour_of_day, day_of_week);
 
+-- ============================================
+-- DWELL TIME VIEW
+-- ============================================
+-- Per-stop dwell durations (arrival -> departure) for BUS routes
+DROP MATERIALIZED VIEW IF EXISTS realtime_dwell_times;
+CREATE MATERIALIZED VIEW realtime_dwell_times AS
+SELECT
+    d.trip_instance_id,
+    d.trip_id,
+    r.route_short_name,
+    r.route_long_name,
+    r.route_type,
+    d.route_id,
+    d.service_date,
+    d.stop_sequence,
+    d.stop_id,
+    s.stop_name,
+    ST_Y(s.stop_loc::geometry) AS stop_lat,
+    ST_X(s.stop_loc::geometry) AS stop_lon,
+    d.actual_arrival,
+    d.actual_departure,
+    EXTRACT(EPOCH FROM (d.actual_departure - d.actual_arrival)) AS dwell_seconds,
+    EXTRACT(EPOCH FROM (d.actual_departure - d.actual_arrival)) / 60.0 AS dwell_minutes,
+    EXTRACT(hour FROM d.actual_arrival) AS hour_of_day,
+    EXTRACT(dow FROM d.actual_arrival) AS day_of_week,
+    CASE 
+        WHEN EXTRACT(dow FROM d.actual_arrival) IN (0, 6) THEN 'Weekend'
+        ELSE 'Weekday'
+    END AS day_type,
+    CASE
+        WHEN EXTRACT(hour FROM d.actual_arrival) BETWEEN 7 AND 9 THEN 'Morning Rush'
+        WHEN EXTRACT(hour FROM d.actual_arrival) BETWEEN 16 AND 18 THEN 'Evening Rush'
+        WHEN EXTRACT(hour FROM d.actual_arrival) BETWEEN 9 AND 16 THEN 'Midday'
+        WHEN EXTRACT(hour FROM d.actual_arrival) BETWEEN 18 AND 22 THEN 'Evening'
+        ELSE 'Night'
+    END AS time_period
+FROM rt_trip_updates_deduped d
+JOIN routes r ON r.route_id = d.route_id
+LEFT JOIN stops s ON s.stop_id = d.stop_id
+WHERE r.route_type = '3'
+  AND d.actual_arrival IS NOT NULL
+  AND d.actual_departure IS NOT NULL
+  AND d.actual_departure > d.actual_arrival
+  AND EXTRACT(EPOCH FROM (d.actual_departure - d.actual_arrival)) BETWEEN 5 AND 900; -- cap to 15 min dwells
+
+CREATE INDEX IF NOT EXISTS idx_realtime_dwell_times_route_stop 
+    ON realtime_dwell_times (route_id, stop_id, hour_of_day);
+CREATE INDEX IF NOT EXISTS idx_realtime_dwell_times_hour 
+    ON realtime_dwell_times (hour_of_day, day_of_week);
+CREATE INDEX IF NOT EXISTS idx_realtime_dwell_times_geom 
+    ON realtime_dwell_times USING GIST (ST_SetSRID(ST_MakePoint(stop_lon, stop_lat), 4326));
+

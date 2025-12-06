@@ -74,7 +74,7 @@ existing results before generating new ones.
         ("Schedule Times Analysis", VISUALIZATION_DIR / "schedule_times_analysis.py"),
         ("Delay Segments Analysis", VISUALIZATION_DIR / "delay_segments_analysis.py"),
         ("Headway Analysis", VISUALIZATION_DIR / "headway_analysis.py"),
-        ("Load vs Delay Analysis", VISUALIZATION_DIR / "load_delay_analysis.py"),
+        ("Headway vs Schedule Analysis", VISUALIZATION_DIR / "headway_vs_schedule_analysis.py")
     ]
     
     print("="*60)

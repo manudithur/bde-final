@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""
-Headway vs Schedule Analysis for Vancouver Transit Realtime Data
-Compares observed headways to scheduled headways and surfaces reliability gaps.
-"""
-
 import sys
 import argparse
 from pathlib import Path
@@ -37,8 +32,6 @@ def fetch_data(conn) -> pd.DataFrame:
     SELECT
         route_short_name,
         stop_name,
-        day_type,
-        time_period,
         observations,
         avg_actual_headway_min,
         scheduled_headway_minutes,
@@ -87,42 +80,8 @@ def plot_worst_stops(df: pd.DataFrame) -> Path:
     return out
 
 
-def plot_time_period(df: pd.DataFrame) -> Path:
-    period_stats = df.groupby("time_period").agg({
-        "headway_delta_min": "mean",
-        "bunching_rate_pct": "mean",
-        "gap_rate_pct": "mean"
-    }).reset_index()
-    period_order = ["Night", "Morning Rush", "Midday", "Evening Rush", "Evening"]
-    period_stats["time_period"] = pd.Categorical(period_stats["time_period"], categories=period_order, ordered=True)
-    period_stats = period_stats.sort_values("time_period")
-
-    fig, ax1 = plt.subplots(figsize=(10, 6))
-    ax1.bar(period_stats["time_period"], period_stats["headway_delta_min"], color="#3498db", alpha=0.8, label="Avg Headway Delta (min)")
-    ax1.axhline(0, color="black", linewidth=1)
-    ax1.set_ylabel("Headway Delta (min)")
-
-    ax2 = ax1.twinx()
-    ax2.plot(period_stats["time_period"], period_stats["bunching_rate_pct"], "o-", color="#e74c3c", label="Bunching Rate (%)")
-    ax2.plot(period_stats["time_period"], period_stats["gap_rate_pct"], "s-", color="#f39c12", label="Gap Rate (%)")
-    ax2.set_ylabel("Rate (%)")
-
-    ax1.set_title("Headway vs Schedule by Time Period", fontsize=14, fontweight="bold")
-    ax1.grid(alpha=0.3)
-
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left")
-
-    plt.tight_layout()
-    out = RESULTS_DIR / "time_period.png"
-    plt.savefig(out, dpi=300, bbox_inches="tight")
-    plt.close()
-    return out
-
-
 def generate_summary_csv(df: pd.DataFrame) -> Path:
-    summary = df.groupby(["route_short_name", "stop_name", "time_period"]).agg({
+    summary = df.groupby(["route_short_name", "stop_name"]).agg({
         "observations": "sum",
         "avg_actual_headway_min": "mean",
         "scheduled_headway_minutes": "mean",
@@ -172,7 +131,6 @@ def main() -> int:
 
     plot_delta_distribution(df)
     plot_worst_stops(df)
-    plot_time_period(df)
     generate_summary_csv(df)
     print_statistics(df)
 

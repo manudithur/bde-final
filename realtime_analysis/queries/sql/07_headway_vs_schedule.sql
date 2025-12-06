@@ -1,35 +1,21 @@
--- Headway vs Scheduled Headway Comparison for BUS routes
--- Produces per-stop, per-route, per-time-period metrics contrasting observed headways
--- (from realtime_headway_stats) with scheduled headways (from transit_stops/trips).
--- Geometry is included for QGIS consumption.
-
 WITH scheduled_headways AS (
-    -- Compute scheduled headways at each stop for BUS routes, bucketed by time period
     WITH trip_times AS (
         SELECT
             t.route_id,
             r.route_short_name,
             ts.stop_id,
-            ts.arrival_time,
-            EXTRACT(hour FROM ts.arrival_time) AS hour_of_day,
-            CASE 
-                WHEN EXTRACT(hour FROM ts.arrival_time) BETWEEN 7 AND 9 THEN 'Morning Rush'
-                WHEN EXTRACT(hour FROM ts.arrival_time) BETWEEN 16 AND 18 THEN 'Evening Rush'
-                WHEN EXTRACT(hour FROM ts.arrival_time) BETWEEN 9 AND 16 THEN 'Midday'
-                WHEN EXTRACT(hour FROM ts.arrival_time) BETWEEN 18 AND 22 THEN 'Evening'
-                ELSE 'Night'
-            END AS time_period
+            ts.arrival_time
         FROM trips t
         JOIN transit_stops ts ON ts.trip_id = t.trip_id
         JOIN routes r ON r.route_id = t.route_id
-        WHERE r.route_type = '3'  -- BUS
+        WHERE r.route_type = '3'
           AND ts.arrival_time IS NOT NULL
     ),
     with_prev AS (
         SELECT
             *,
             LAG(arrival_time) OVER (
-                PARTITION BY route_id, stop_id, time_period
+                PARTITION BY route_id, stop_id
                 ORDER BY arrival_time
             ) AS prev_arrival
         FROM trip_times
@@ -38,16 +24,14 @@ WITH scheduled_headways AS (
         route_id,
         route_short_name,
         stop_id,
-        time_period,
         AVG(EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) / 60.0) AS scheduled_headway_minutes
     FROM with_prev
     WHERE prev_arrival IS NOT NULL
       AND EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) > 0
       AND EXTRACT(EPOCH FROM (arrival_time - prev_arrival)) < 7200
-    GROUP BY route_id, route_short_name, stop_id, time_period
+    GROUP BY route_id, route_short_name, stop_id
 ),
 actual_headways AS (
-    -- Observed headways from realtime_headway_stats, bucketed by time period/day type
     SELECT
         h.route_id,
         h.route_short_name,
@@ -55,8 +39,6 @@ actual_headways AS (
         h.stop_name,
         h.stop_lat,
         h.stop_lon,
-        h.time_period,
-        h.day_type,
         h.headway_minutes
     FROM realtime_headway_stats h
     JOIN routes r ON h.route_id = r.route_id
@@ -69,8 +51,6 @@ SELECT
     a.stop_name,
     a.stop_lat,
     a.stop_lon,
-    a.day_type,
-    a.time_period,
     -- Observed headway stats
     COUNT(*) AS observations,
     AVG(a.headway_minutes) AS avg_actual_headway_min,
@@ -93,7 +73,6 @@ FROM actual_headways a
 LEFT JOIN scheduled_headways sh
     ON sh.route_id = a.route_id
    AND sh.stop_id = a.stop_id
-   AND sh.time_period = a.time_period
 GROUP BY
     a.route_id,
     a.route_short_name,
@@ -101,8 +80,6 @@ GROUP BY
     a.stop_name,
     a.stop_lat,
     a.stop_lon,
-    a.day_type,
-    a.time_period,
     sh.scheduled_headway_minutes
 HAVING COUNT(*) >= 3
 ORDER BY headway_delta_min DESC NULLS LAST, observations DESC;

@@ -200,14 +200,16 @@ This should return version numbers for both extensions if they're properly insta
    python speed_vs_schedule_analysis.py    # Scheduled vs actual speeds
    python schedule_times_analysis.py       # Scheduled vs actual times
    python delay_segments_analysis.py       # Traffic/congestion patterns
-   python headway_analysis.py              # Bus bunching and headway analysis
+  python headway_analysis.py              # Bus bunching and headway analysis
+  python load_delay_analysis.py           # Crowding (occupancy) vs delay
    ```
    
    **Visualization Scripts:**
    - **speed_vs_schedule_analysis.py** - Compares planned velocities with actual observed speeds
    - **schedule_times_analysis.py** - Compares scheduled arrival/departure times with actual times
    - **delay_segments_analysis.py** - Analyzes traffic patterns and congestion by time/location
-   - **headway_analysis.py** - Analyzes bus bunching and headway regularity
+  - **headway_analysis.py** - Analyzes bus bunching and headway regularity
+  - **load_delay_analysis.py** - Correlates vehicle occupancy with delays to spot crowding-driven slowdowns
    
    **Outputs:**
    - All results saved to `realtime_analysis/queries/results/` organized by analysis type (PNG graphs + CSV metrics).

@@ -326,54 +326,73 @@ CREATE INDEX IF NOT EXISTS idx_realtime_schedule_times_hour
     ON realtime_schedule_times (hour_of_day, day_of_week);
 
 -- ============================================
--- DWELL TIME VIEW
+-- LOAD VS DELAY VIEW
 -- ============================================
--- Per-stop dwell durations (arrival -> departure) for BUS routes
-DROP MATERIALIZED VIEW IF EXISTS realtime_dwell_times;
-CREATE MATERIALIZED VIEW realtime_dwell_times AS
+-- Correlates vehicle occupancy_status with segment-level delay metrics
+-- Uses latest occupancy per trip_instance_id and joins to realtime_delay_analysis
+DROP MATERIALIZED VIEW IF EXISTS realtime_load_delay;
+CREATE MATERIALIZED VIEW realtime_load_delay AS
+WITH latest_occ AS (
+    SELECT DISTINCT ON (vp.trip_instance_id)
+        vp.trip_instance_id,
+        vp.route_id,
+        vp.entity_timestamp,
+        vp.occupancy_status,
+        CASE vp.occupancy_status
+            WHEN 'EMPTY' THEN 0
+            WHEN 'MANY_SEATS_AVAILABLE' THEN 1
+            WHEN 'FEW_SEATS_AVAILABLE' THEN 2
+            WHEN 'STANDING_ROOM_ONLY' THEN 3
+            WHEN 'CRUSHED_STANDING_ROOM_ONLY' THEN 4
+            WHEN 'FULL' THEN 5
+            WHEN 'NOT_ACCEPTING_PASSENGERS' THEN 6
+            ELSE NULL
+        END AS occupancy_level
+    FROM rt_vehicle_positions vp
+    WHERE vp.occupancy_status IS NOT NULL
+    ORDER BY vp.trip_instance_id, vp.entity_timestamp DESC
+)
 SELECT
     d.trip_instance_id,
     d.trip_id,
+    d.route_id,
     r.route_short_name,
     r.route_long_name,
     r.route_type,
-    d.route_id,
     d.service_date,
-    d.stop_sequence,
-    d.stop_id,
-    s.stop_name,
-    ST_Y(s.stop_loc::geometry) AS stop_lat,
-    ST_X(s.stop_loc::geometry) AS stop_lon,
-    d.actual_arrival,
-    d.actual_departure,
-    EXTRACT(EPOCH FROM (d.actual_departure - d.actual_arrival)) AS dwell_seconds,
-    EXTRACT(EPOCH FROM (d.actual_departure - d.actual_arrival)) / 60.0 AS dwell_minutes,
-    EXTRACT(hour FROM d.actual_arrival) AS hour_of_day,
-    EXTRACT(dow FROM d.actual_arrival) AS day_of_week,
+    d.from_stop_id,
+    d.to_stop_id,
+    d.from_stop_name,
+    d.to_stop_name,
+    d.segment_length_m,
+    d.scheduled_seconds,
+    d.actual_seconds,
+    d.segment_delay_minutes,
+    d.hour_of_day,
+    d.day_of_week,
+    d.day_type,
+    d.time_period,
+    d.seg_geom,
+    lo.occupancy_status,
+    lo.occupancy_level,
     CASE 
-        WHEN EXTRACT(dow FROM d.actual_arrival) IN (0, 6) THEN 'Weekend'
-        ELSE 'Weekday'
-    END AS day_type,
-    CASE
-        WHEN EXTRACT(hour FROM d.actual_arrival) BETWEEN 7 AND 9 THEN 'Morning Rush'
-        WHEN EXTRACT(hour FROM d.actual_arrival) BETWEEN 16 AND 18 THEN 'Evening Rush'
-        WHEN EXTRACT(hour FROM d.actual_arrival) BETWEEN 9 AND 16 THEN 'Midday'
-        WHEN EXTRACT(hour FROM d.actual_arrival) BETWEEN 18 AND 22 THEN 'Evening'
-        ELSE 'Night'
-    END AS time_period
-FROM rt_trip_updates_deduped d
-JOIN routes r ON r.route_id = d.route_id
-LEFT JOIN stops s ON s.stop_id = d.stop_id
-WHERE r.route_type = '3'
-  AND d.actual_arrival IS NOT NULL
-  AND d.actual_departure IS NOT NULL
-  AND d.actual_departure > d.actual_arrival
-  AND EXTRACT(EPOCH FROM (d.actual_departure - d.actual_arrival)) BETWEEN 5 AND 900; -- cap to 15 min dwells
+        WHEN lo.occupancy_level IS NULL THEN 'Unknown'
+        WHEN lo.occupancy_level <= 1 THEN 'Plenty of seats'
+        WHEN lo.occupancy_level = 2 THEN 'Few seats left'
+        WHEN lo.occupancy_level = 3 THEN 'Standing room'
+        WHEN lo.occupancy_level >= 4 THEN 'Crowded'
+    END AS occupancy_bucket
+FROM realtime_delay_analysis d
+JOIN latest_occ lo 
+    ON d.trip_instance_id = lo.trip_instance_id
+LEFT JOIN routes r ON r.route_id = d.route_id
+WHERE d.segment_delay_minutes BETWEEN -30 AND 60
+  AND d.segment_length_m > 10;
 
-CREATE INDEX IF NOT EXISTS idx_realtime_dwell_times_route_stop 
-    ON realtime_dwell_times (route_id, stop_id, hour_of_day);
-CREATE INDEX IF NOT EXISTS idx_realtime_dwell_times_hour 
-    ON realtime_dwell_times (hour_of_day, day_of_week);
-CREATE INDEX IF NOT EXISTS idx_realtime_dwell_times_geom 
-    ON realtime_dwell_times USING GIST (ST_SetSRID(ST_MakePoint(stop_lon, stop_lat), 4326));
+CREATE INDEX IF NOT EXISTS idx_realtime_load_delay_route 
+    ON realtime_load_delay (route_id, service_date);
+CREATE INDEX IF NOT EXISTS idx_realtime_load_delay_occ 
+    ON realtime_load_delay (occupancy_bucket);
+CREATE INDEX IF NOT EXISTS idx_realtime_load_delay_geom 
+    ON realtime_load_delay USING GIST (seg_geom);
 

@@ -911,6 +911,65 @@ permite cuantificar la incidencia del \emph{bus bunching} y de las brechas de
 servicio prolongadas. Debido a la hora de los datos, creemos que el headway analizado es representativo
 del servicio un día normal de semana.
 
+\subsection{Headway observado vs.\ headway programado}
+
+Se creó la vista \texttt{qgis\_realtime\_headway\_vs\_schedule} para comparar el
+headway observado en cada parada con el headway programado. Se filtran pares
+parada--ruta con al menos tres observaciones y se calculan:
+headway observado, headway programado, diferencia (observado $-$ programado) y
+tasas de \emph{bunching} y \emph{gaps}. El análisis resultó en 2{,}724
+observaciones (85 rutas, 2{,}221 paradas), con una diferencia promedio de
+aprox.\ +5~min y mediana de +5.3~min; la tasa promedio de \emph{bunching} es
+12\% y la de \emph{gaps} 54\%.
+
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.8\textwidth]{%
+    ../realtime_analysis/queries/results/headway_vs_schedule/headway_delta_distribution.png}
+  \caption{Distribución de la diferencia de headway (observado $-$ programado).}
+  \label{fig:headway-vs-sched-dist}
+\end{figure}
+
+La distribución muestra un corrimiento positivo: en la mayoría de paradas el
+intervalo real es varios minutos mayor que el planificado. Los peores casos
+aparecen en la ruta 210 (centro), con demoras medias de headway $\sim$20~min
+sobre lo programado (ej., Howe \& Pender, Pender \& Hamilton). En el extremo
+opuesto, algunas paradas de las rutas 531 y 602 presentan headways reales
+10--12~min más cortos que los programados, reflejando sobreoferta puntual.
+
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.85\textwidth]{%
+    ../realtime_analysis/queries/results/headway_vs_schedule/worst_stops.png}
+  \caption{Paradas con mayor headway observado vs.\ programado.}
+  \label{fig:headway-vs-sched-worst}
+\end{figure}
+
+\subsection{Retrasos por segmento con ocupación}
+
+Para combinar desempeño operativo y nivel de ocupación se construyó la vista
+materializada \texttt{qgis\_realtime\_load\_delay\_segments}. Parte de
+\texttt{realtime\_load\_delay} (demora por tramo) y agrega por ruta, bucket de
+ocupación y geometría de segmento (solo buses), calculando demora promedio,
+desvío estándar y cantidad de observaciones, filtrando grupos con al menos tres
+eventos. La consulta espera ocupación reciente en \texttt{rt\_vehicle\_positions}
+que se pueda unir por \texttt{trip\_instance\_id}.
+
+En este dataset no se registró ocupación asociable a los viajes observados, por
+lo que la vista quedó vacía. De haberse contado con esos campos, el mapa
+mostraría segmentos coloreados por bucket de ocupación y ordenados por demora
+promedio, permitiendo ver si los tramos más demorados coinciden con vehículos
+llenos.
+
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.8\textwidth]{%
+    ../realtime_analysis/queries/results/load_delay_segments/load_delay_map.png}
+  \caption{Mapa esperado de demora por segmento y bucket de ocupación
+  (no generado por falta de datos de ocupación).}
+  \label{fig:load-delay-map}
+\end{figure}
+
 \section{Discusión de resultados}
 
 En los análisis estáticos se observa una red con alta concentración de rutas y

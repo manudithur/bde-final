@@ -680,8 +680,8 @@ materializan esas conexiones sobre la red de transporte.
 Los análisis sobre datos en tiempo real se basan en las trayectorias \emph{map-matched}
 almacenadas en \texttt{realtime\_trips\_mdb}, las cuales se comparan con sus equivalentes
 programados en \texttt{scheduled\_trips\_mdb}. Los resultados presentados en esta sección
-se basan en aproximadamente una hora de datos recolectados el 3 de diciembre de 2025 (día de semana)
-entre las 10:00 y las 11:00 (hora local de Vancouver).
+se basan en datos recolectados el 7 de diciembre de 2025 (fin de semana, domingo) entre las 7am y las 11am (hora local de Vancouver) y
+datos del 8 de diciembre de 2025 (dia de semana, lunes) entre las 8am y las 11am (hora local de Vancouver).
 
 \subsection{Velocidad real vs.\ velocidad programada}
 
@@ -753,8 +753,9 @@ de forma sistemáticamente más lenta que lo previsto (en rojo), así como tramo
 que tienden a adelantarse sobre el horario (en amarillo). El histograma de diferencias
 muestra una distribución aproximadamente unimodal, con una masa importante de segmentos
 con velocidades similares a las previstas y colas que capturan tanto episodios de
-fuerte sobreejecución como segmentos marcadamente más lentos que el plan. Creemos fuertemente que
-las diferencias de velocidad se deben al horario y la congestión de la ciudad, la cual varía en función de la hora del día.
+fuerte sobreejecución como segmentos marcadamente más lentos que el plan. Con los datos obtenidos,
+tenemos en cuenta tanto los fines de semana como los días de semana para poder tener una vista
+completa del funcionamiento del servicio.
 
 \subsection{Desempeño de horarios (schedule times)}
 
@@ -819,8 +820,7 @@ El desempeño de puntualidad se ilustra mediante un mapa y un histograma de demo
 El mapa permite ubicar espacialmente los puntos donde el sistema opera de forma
 mayormente puntual (en verde) frente a corredores donde predominan los retrasos
 o adelantos marcados. Los gráficos muestran una cola hacia valores positivos que
-indica predominio de demoras por encima del horario programado, especialmente
-debido a la hora de los datos y en calles troncales. Sin embargo, podemos ver 
+indica un muy leve predominio de demoras por encima del horario programado, especialmente en calles troncales. Sin embargo, podemos ver 
 que los horarios se suelen cumplir con precisión, observando que la mayoría del mapa se encuentra en verde.
 
 \subsection{Regularidad de headways y \emph{bus bunching}}
@@ -908,8 +908,8 @@ y su clasificación por categorías:
 Los gráficos muestran la distribución de intervalos entre vehículos y la
 proporción de headways en cada categoría por ruta, lo que
 permite cuantificar la incidencia del \emph{bus bunching} y de las brechas de
-servicio prolongadas. Debido a la hora de los datos, creemos que el headway analizado es representativo
-del servicio un día normal de semana.
+servicio prolongadas. Debido a la hora y dias de los datos, creemos que el headway analizado es representativo
+del servicio en su totalidad.
 
 \subsection{Headway observado vs.\ headway programado}
 
@@ -917,10 +917,9 @@ Se creó la vista \texttt{qgis\_realtime\_headway\_vs\_schedule} para comparar e
 headway observado en cada parada con el headway programado. Se filtran pares
 parada--ruta con al menos tres observaciones y se calculan:
 headway observado, headway programado, diferencia (observado $-$ programado) y
-tasas de \emph{bunching} y \emph{gaps}. El análisis resultó en 2{,}724
-observaciones (85 rutas, 2{,}221 paradas), con una diferencia promedio de
-aprox.\ +5~min y mediana de +5.3~min; la tasa promedio de \emph{bunching} es
-12\% y la de \emph{gaps} 54\%.
+tasas de \emph{bunching} y \emph{gaps}. Con una muestra amplia de rutas y
+paradas, se observa una diferencia promedio cercana a +5~min entre el headway
+real y el programado.
 
 \begin{figure}[H]
   \centering
@@ -932,10 +931,10 @@ aprox.\ +5~min y mediana de +5.3~min; la tasa promedio de \emph{bunching} es
 
 La distribución muestra un corrimiento positivo: en la mayoría de paradas el
 intervalo real es varios minutos mayor que el planificado. Los peores casos
-aparecen en la ruta 210 (centro), con demoras medias de headway $\sim$20~min
-sobre lo programado (ej., Howe \& Pender, Pender \& Hamilton). En el extremo
-opuesto, algunas paradas de las rutas 531 y 602 presentan headways reales
-10--12~min más cortos que los programados, reflejando sobreoferta puntual.
+aparecen en la ruta 210 (centro), con demoras de headway que rondan los 20~min
+sobre lo programado. En el extremo
+opuesto, algunas paradas de las rutas 531 y 602 presentan headways algo más
+cortos que los programados, reflejando sobreoferta puntual.
 
 \begin{figure}[H]
   \centering
@@ -976,16 +975,17 @@ como el Pacific Coliseum, el cual se encuentra en una zona residencial, tiene me
 Los resultados con datos en tiempo real muestran que, aunque muchos segmentos
 mantienen velocidades cercanas a las programadas, existen corredores donde la
 velocidad observada es sistemáticamente menor o mayor que la prevista. El horario y día elegido para el análisis es una buena muestra
-representativa del servicio funcionando normalmente en un horario de trabajo. Los
-mapas y distribuciones de demoras por parada evidencian una cola hacia valores
+representativa del servicio funcionando no solamente en su momento mas congestionado (hora pico un dia de semana), 
+sino tambien como funciona el servicio la mayor parte del tiempo.
+Los mapas y distribuciones de demoras por parada evidencian una cola hacia valores
 positivos, con retrasos concentrados en ciertos corredores y horarios. Sin embargo, además de que estas diferencias
 inevitablemente variarán dependiendo la hora del día, podemos observar que aún con muchos tramos 
 no cumpliendo con la velocidad programada, el horario se suele cumplir con precisión.
 
 Finalmente, el análisis de headways revela una mezcla de intervalos ``bunched'',
 regulares y con grandes brechas, cuya distribución varía según la ruta. Estos datos presentan la información de que
-la mayoría de los buses tienden a circular de forma muy regular, con alrededor de 6 minutos de media, 
-pero con más del 60\% de los buses circulando con menos de 3 minutos de intervalo, lo cual es un buen indicador de que el servicio es eficiente.
+la mayoría de los buses tienden a circular de forma muy regular, con alrededor de 10 minutos de media, 
+pero con más del 30\% de los buses circulando con menos de 3 minutos de intervalo, lo cual es un buen indicador de que el servicio es eficiente.
 
 En conjunto, los resultados estáticos y en tiempo real ofrecen
 una imagen integrada de la estructura de la red, su relación con la densidad

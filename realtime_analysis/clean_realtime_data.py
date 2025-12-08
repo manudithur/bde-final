@@ -17,8 +17,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Set
 
-from realtime_analysis.config import Settings, load_settings
-from realtime_analysis.utils import get_connection
+from realtime_analysis.utility.config import Settings, load_settings
+from realtime_analysis.utility.utils import get_connection
 
 LOG = logging.getLogger("realtime_analysis.clean")
 

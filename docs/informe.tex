@@ -945,29 +945,12 @@ opuesto, algunas paradas de las rutas 531 y 602 presentan headways reales
   \label{fig:headway-vs-sched-worst}
 \end{figure}
 
-\subsection{Retrasos por segmento con ocupación}
-
-Para combinar desempeño operativo y nivel de ocupación se construyó la vista
-materializada \texttt{qgis\_realtime\_load\_delay\_segments}. Parte de
-\texttt{realtime\_load\_delay} (demora por tramo) y agrega por ruta, bucket de
-ocupación y geometría de segmento (solo buses), calculando demora promedio,
-desvío estándar y cantidad de observaciones, filtrando grupos con al menos tres
-eventos. La consulta espera ocupación reciente en \texttt{rt\_vehicle\_positions}
-que se pueda unir por \texttt{trip\_instance\_id}.
-
-En este dataset no se registró ocupación asociable a los viajes observados, por
-lo que la vista quedó vacía. De haberse contado con esos campos, el mapa
-mostraría segmentos coloreados por bucket de ocupación y ordenados por demora
-promedio, permitiendo ver si los tramos más demorados coinciden con vehículos
-llenos.
-
 \begin{figure}[H]
   \centering
   \includegraphicsifexists[width=0.8\textwidth]{%
-    ../realtime_analysis/queries/results/load_delay_segments/load_delay_map.png}
-  \caption{Mapa esperado de demora por segmento y bucket de ocupación
-  (no generado por falta de datos de ocupación).}
-  \label{fig:load-delay-map}
+    ../realtime_analysis/queries/results/headway_vs_schedule/headway_vs_schedule_map.png}
+  \caption{Mapa de diferencia de headway observado vs.\ programado por parada.}
+  \label{fig:headway-vs-sched-map}
 \end{figure}
 
 \section{Discusión de resultados}

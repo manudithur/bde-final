@@ -83,9 +83,9 @@ def fetch_schedule_times_data(conn) -> pd.DataFrame:
     
     df["delay_category"] = pd.cut(
         df["delay_minutes"],
-        bins=[-float("inf"), -5, -1, 1, 5, 10, float("inf")],
-        labels=["Very Early (>5 min)", "Early (1-5 min)", "On Time (±1 min)", 
-                "Late (1-5 min)", "Very Late (5-10 min)", "Severely Late (>10 min)"]
+        bins=[-float("inf"), -7, -3, 3, 7, float("inf")],
+        labels=["Severe Early (<-7 min)", "Minor Early (-7 to -3 min)", "On Time (±3 min)", 
+                "Minor Late (3 to 7 min)", "Severe Late (>7 min)"]
     )
     
     return df
@@ -95,9 +95,15 @@ def plot_delay_histogram(df: pd.DataFrame, suffix: str) -> Path:
     """Create histogram of arrival delays."""
     fig, ax = plt.subplots(figsize=(12, 6))
     
-    delay_capped = df["delay_minutes"].clip(-20, 30)
+    # Use symmetric range centered at 0
+    max_abs_delay = max(abs(df["delay_minutes"].min()), abs(df["delay_minutes"].max()))
+    delay_capped = df["delay_minutes"].clip(-max_abs_delay, max_abs_delay)
     ax.hist(delay_capped, bins=60, color='#1f77b4', edgecolor='black', alpha=0.7)
-    ax.axvline(0, color='red', linestyle='-', linewidth=2, label="On Time")
+    ax.axvline(0, color='green', linestyle='-', linewidth=2, label="On Time (0 min)")
+    ax.axvline(-3, color='orange', linestyle='--', linewidth=1, alpha=0.5, label="±3 min")
+    ax.axvline(3, color='orange', linestyle='--', linewidth=1, alpha=0.5)
+    ax.axvline(-7, color='red', linestyle=':', linewidth=1, alpha=0.5, label="±7 min (Severe)")
+    ax.axvline(7, color='red', linestyle=':', linewidth=1, alpha=0.5)
     ax.axvline(df["delay_minutes"].mean(), color='orange', linestyle='--', 
                linewidth=2, label=f"Mean: {df['delay_minutes'].mean():.1f} min")
     
@@ -165,9 +171,9 @@ def plot_delay_by_route(df: pd.DataFrame, suffix: str) -> Path:
 
 def plot_on_time_performance(df: pd.DataFrame, suffix: str) -> Path:
     """Create on-time performance by route."""
-    df["on_time"] = (df["delay_minutes"] >= -1) & (df["delay_minutes"] <= 5)
-    df["early"] = df["delay_minutes"] < -1
-    df["late"] = df["delay_minutes"] > 5
+    df["on_time"] = (df["delay_minutes"] >= -3) & (df["delay_minutes"] <= 3)
+    df["early"] = df["delay_minutes"] < -3
+    df["late"] = df["delay_minutes"] > 3
     
     route_otp = df.groupby("route_short_name").agg({
         "on_time": "mean",
@@ -183,12 +189,12 @@ def plot_on_time_performance(df: pd.DataFrame, suffix: str) -> Path:
     
     y_pos = range(len(route_otp))
     
-    ax.barh(y_pos, route_otp["Late"] * 100, color='#e74c3c', label='Late (>5 min)')
+    ax.barh(y_pos, route_otp["Late"] * 100, color='#e74c3c', label='Late (>3 min)')
     ax.barh(y_pos, route_otp["On-Time"] * 100, left=route_otp["Late"] * 100, 
-            color='#2ecc71', label='On-Time (±5 min)')
+            color='#2ecc71', label='On-Time (±3 min)')
     ax.barh(y_pos, route_otp["Early"] * 100, 
             left=(route_otp["Late"] + route_otp["On-Time"]) * 100,
-            color='#3498db', label='Early (>1 min)')
+            color='#3498db', label='Early (<-3 min)')
     
     ax.set_yticks(y_pos)
     ax.set_yticklabels(route_otp["Route"])
@@ -241,13 +247,17 @@ def print_statistics(df: pd.DataFrame) -> None:
     print(f"  Std:    {df['delay_minutes'].std():.2f}")
     
     print(f"\n--- On-Time Performance ---")
-    on_time = ((df["delay_minutes"] >= -1) & (df["delay_minutes"] <= 5)).sum()
-    early = (df["delay_minutes"] < -1).sum()
-    late = (df["delay_minutes"] > 5).sum()
+    on_time = ((df["delay_minutes"] >= -3) & (df["delay_minutes"] <= 3)).sum()
+    minor_early = ((df["delay_minutes"] >= -7) & (df["delay_minutes"] < -3)).sum()
+    minor_late = ((df["delay_minutes"] > 3) & (df["delay_minutes"] <= 7)).sum()
+    severe_early = (df["delay_minutes"] < -7).sum()
+    severe_late = (df["delay_minutes"] > 7).sum()
     
-    print(f"  On-time (-1 to +5 min): {on_time:,} ({on_time/len(df)*100:.1f}%)")
-    print(f"  Early (< -1 min):       {early:,} ({early/len(df)*100:.1f}%)")
-    print(f"  Late (> 5 min):         {late:,} ({late/len(df)*100:.1f}%)")
+    print(f"  On-time (±3 min):       {on_time:,} ({on_time/len(df)*100:.1f}%)")
+    print(f"  Minor Early (-7 to -3): {minor_early:,} ({minor_early/len(df)*100:.1f}%)")
+    print(f"  Minor Late (3 to 7):    {minor_late:,} ({minor_late/len(df)*100:.1f}%)")
+    print(f"  Severe Early (<-7):     {severe_early:,} ({severe_early/len(df)*100:.1f}%)")
+    print(f"  Severe Late (>7):       {severe_late:,} ({severe_late/len(df)*100:.1f}%)")
     
     print("\n" + "=" * 70)
 

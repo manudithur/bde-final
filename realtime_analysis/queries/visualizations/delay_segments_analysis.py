@@ -102,9 +102,9 @@ def fetch_segment_delays(conn) -> pd.DataFrame:
     
     df["delay_severity"] = pd.cut(
         df["segment_delay_minutes"],
-        bins=[-float("inf"), 0, 2, 5, 10, float("inf")],
-        labels=["No Delay", "Minor (0-2)", "Moderate (2-5)", 
-                "Significant (5-10)", "Severe (>10)"]
+        bins=[-float("inf"), -7, -3, 3, 7, float("inf")],
+        labels=["Severe Early (<-7)", "Minor Early (-7 to -3)", "On Time (±3)", 
+                "Minor Late (3 to 7)", "Severe Late (>7)"]
     )
     
     return df
@@ -123,12 +123,24 @@ def plot_delay_by_time_period(df: pd.DataFrame, suffix: str) -> Path:
            color=colors[:len(period_delays)], alpha=0.8)
     ax.set_xticks(range(len(period_delays)))
     ax.set_xticklabels(period_delays.index)
-    ax.axhline(0, color='black', linestyle='-', linewidth=0.5)
+    
+    # Add reference lines for the new scale
+    ax.axhline(0, color='green', linestyle='-', linewidth=2, label='On Time (0 min)')
+    ax.axhline(-3, color='orange', linestyle='--', linewidth=1, alpha=0.5, label='±3 min')
+    ax.axhline(3, color='orange', linestyle='--', linewidth=1, alpha=0.5)
+    ax.axhline(-7, color='red', linestyle=':', linewidth=1, alpha=0.5, label='±7 min (Severe)')
+    ax.axhline(7, color='red', linestyle=':', linewidth=1, alpha=0.5)
+    
+    # Set y-axis limits to show the full scale including thresholds
+    data_range = max(abs(period_delays.values.min()), abs(period_delays.values.max())) if len(period_delays) > 0 else 0
+    y_max = max(7.0, data_range * 1.1)  # At least show ±7, or 10% more than data range
+    ax.set_ylim(-y_max, y_max)
     
     ax.set_xlabel("Time Period", fontsize=12)
     ax.set_ylabel("Average Delay (minutes)", fontsize=12)
     ax.set_title("Average BUS Segment Delay by Time Period", fontsize=14, fontweight='bold')
     ax.grid(axis='y', alpha=0.3)
+    ax.legend(loc='best', fontsize=9)
     
     plt.tight_layout()
     output_path = RESULTS_DIR / f"delay_by_time_period.png"
@@ -137,70 +149,6 @@ def plot_delay_by_time_period(df: pd.DataFrame, suffix: str) -> Path:
     return output_path
 
 
-def plot_delay_by_hour(df: pd.DataFrame, suffix: str) -> Path:
-    """Create line chart of delay by hour of day."""
-    hourly = df.groupby("hour_of_day").agg({
-        "segment_delay_minutes": ["mean", "std"]
-    }).reset_index()
-    hourly.columns = ["hour", "mean", "std"]
-    
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
-    ax.plot(hourly["hour"], hourly["mean"], 'o-', color='#e74c3c', 
-            linewidth=2, markersize=8)
-    ax.fill_between(hourly["hour"], 
-                    hourly["mean"] - hourly["std"],
-                    hourly["mean"] + hourly["std"],
-                    alpha=0.2, color='#e74c3c')
-    ax.axhline(0, color='green', linestyle='--', linewidth=1, label='No Delay')
-    
-    ax.set_xlabel("Hour of Day", fontsize=12)
-    ax.set_ylabel("Average Delay (minutes)", fontsize=12)
-    ax.set_title("BUS Segment Delay by Hour of Day", fontsize=14, fontweight='bold')
-    ax.set_xticks(range(0, 24))
-    ax.legend()
-    ax.grid(alpha=0.3)
-    
-    plt.tight_layout()
-    output_path = RESULTS_DIR / f"delay_by_hour.png"
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    return output_path
-
-
-def plot_delay_heatmap(df: pd.DataFrame, suffix: str) -> Path:
-    """Create heatmap of delays by hour and day of week."""
-    pivot = df.pivot_table(
-        values="segment_delay_minutes",
-        index="day_of_week",
-        columns="hour_of_day",
-        aggfunc="mean"
-    )
-    
-    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-    pivot.index = [day_names[int(i)] for i in pivot.index]
-    
-    fig, ax = plt.subplots(figsize=(14, 6))
-    
-    im = ax.imshow(pivot.values, cmap='RdYlGn_r', aspect='auto')
-    
-    ax.set_xticks(range(len(pivot.columns)))
-    ax.set_xticklabels([str(int(c)) for c in pivot.columns])
-    ax.set_yticks(range(len(pivot.index)))
-    ax.set_yticklabels(pivot.index)
-    
-    ax.set_xlabel("Hour of Day", fontsize=12)
-    ax.set_ylabel("Day of Week", fontsize=12)
-    ax.set_title("BUS Traffic Delay Patterns: When Delays Occur", fontsize=14, fontweight='bold')
-    
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("Avg Delay (min)")
-    
-    plt.tight_layout()
-    output_path = RESULTS_DIR / f"delay_heatmap.png"
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    return output_path
 
 
 def plot_worst_segments(df: pd.DataFrame, suffix: str) -> Path:
@@ -258,31 +206,6 @@ def plot_delay_severity(df: pd.DataFrame, suffix: str) -> Path:
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
     return output_path
-
-
-def plot_weekday_vs_weekend(df: pd.DataFrame, suffix: str) -> Path:
-    """Compare weekday vs weekend delays."""
-    day_type_delays = df.groupby("day_type")["segment_delay_minutes"].mean()
-    
-    fig, ax = plt.subplots(figsize=(8, 6))
-    
-    ax.bar(range(len(day_type_delays)), day_type_delays.values, 
-           color=['#3498db', '#f39c12'], alpha=0.8)
-    ax.set_xticks(range(len(day_type_delays)))
-    ax.set_xticklabels(day_type_delays.index)
-    ax.axhline(0, color='black', linestyle='-', linewidth=0.5)
-    
-    ax.set_xlabel("Day Type", fontsize=12)
-    ax.set_ylabel("Average Delay (minutes)", fontsize=12)
-    ax.set_title("BUS Weekday vs Weekend Delays", fontsize=14, fontweight='bold')
-    ax.grid(axis='y', alpha=0.3)
-    
-    plt.tight_layout()
-    output_path = RESULTS_DIR / f"weekday_vs_weekend.png"
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    return output_path
-
 
 
 
@@ -385,20 +308,11 @@ def main():
     path = plot_delay_by_time_period(df, suffix)
     print(f"  ✓ Delay by time period: {path}")
     
-    path = plot_delay_by_hour(df, suffix)
-    print(f"  ✓ Delay by hour: {path}")
-    
-    path = plot_delay_heatmap(df, suffix)
-    print(f"  ✓ Delay heatmap: {path}")
-    
     path = plot_worst_segments(df, suffix)
     print(f"  ✓ Worst segments: {path}")
     
     path = plot_delay_severity(df, suffix)
     print(f"  ✓ Delay severity: {path}")
-    
-    path = plot_weekday_vs_weekend(df, suffix)
-    print(f"  ✓ Weekday vs weekend: {path}")
     
     csv_path = generate_summary_csv(df, suffix)
     print(f"  ✓ Summary CSV: {csv_path}")

@@ -90,8 +90,8 @@ SELECT
     EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)) AS scheduled_seconds,
     EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)) AS actual_seconds,
     w.arrival_delay_seconds,
-    EXTRACT(hour FROM w.actual_arrival) AS hour_of_day,
-    EXTRACT(dow FROM w.actual_arrival) AS day_of_week,
+    EXTRACT(hour FROM (w.actual_arrival AT TIME ZONE 'America/Vancouver')) AS hour_of_day,
+    EXTRACT(dow FROM (w.actual_arrival AT TIME ZONE 'America/Vancouver')) AS day_of_week,
     -- Calculated speeds in km/h
     (rs.seg_length / NULLIF(EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time)), 0) * 3.6) AS scheduled_speed_kmh,
     (rs.seg_length / NULLIF(EXTRACT(EPOCH FROM (w.next_actual_arrival - w.actual_arrival)), 0) * 3.6) AS actual_speed_kmh
@@ -167,17 +167,17 @@ SELECT
     -- Delay in minutes
     (EXTRACT(EPOCH FROM (w.to_arrival - w.from_arrival)) - 
      EXTRACT(EPOCH FROM (rs.stop2_arrival_time - rs.stop1_arrival_time))) / 60.0 AS segment_delay_minutes,
-    EXTRACT(hour FROM w.from_arrival) AS hour_of_day,
-    EXTRACT(dow FROM w.from_arrival) AS day_of_week,
+    EXTRACT(hour FROM (w.from_arrival AT TIME ZONE 'America/Vancouver')) AS hour_of_day,
+    EXTRACT(dow FROM (w.from_arrival AT TIME ZONE 'America/Vancouver')) AS day_of_week,
     CASE 
-        WHEN EXTRACT(dow FROM w.from_arrival) IN (0, 6) THEN 'Weekend'
+        WHEN EXTRACT(dow FROM (w.from_arrival AT TIME ZONE 'America/Vancouver')) IN (0, 6) THEN 'Weekend'
         ELSE 'Weekday'
     END AS day_type,
     CASE
-        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 7 AND 9 THEN 'Morning Rush'
-        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 16 AND 18 THEN 'Evening Rush'
-        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 9 AND 16 THEN 'Midday'
-        WHEN EXTRACT(hour FROM w.from_arrival) BETWEEN 18 AND 22 THEN 'Evening'
+        WHEN EXTRACT(hour FROM (w.from_arrival AT TIME ZONE 'America/Vancouver')) BETWEEN 7 AND 9 THEN 'Morning Rush'
+        WHEN EXTRACT(hour FROM (w.from_arrival AT TIME ZONE 'America/Vancouver')) BETWEEN 16 AND 18 THEN 'Evening Rush'
+        WHEN EXTRACT(hour FROM (w.from_arrival AT TIME ZONE 'America/Vancouver')) BETWEEN 9 AND 16 THEN 'Midday'
+        WHEN EXTRACT(hour FROM (w.from_arrival AT TIME ZONE 'America/Vancouver')) BETWEEN 18 AND 22 THEN 'Evening'
         ELSE 'Night'
     END AS time_period
 FROM with_next w
@@ -218,17 +218,17 @@ WITH stop_arrivals AS (
         rtu.trip_instance_id,
         rtu.trip_id,
         rtu.arrival_time,
-        EXTRACT(hour FROM rtu.arrival_time) AS hour_of_day,
-        EXTRACT(dow FROM rtu.arrival_time) AS day_of_week,
+        EXTRACT(hour FROM (rtu.arrival_time AT TIME ZONE 'America/Vancouver')) AS hour_of_day,
+        EXTRACT(dow FROM (rtu.arrival_time AT TIME ZONE 'America/Vancouver')) AS day_of_week,
         CASE 
-            WHEN EXTRACT(dow FROM rtu.arrival_time) IN (0, 6) THEN 'Weekend'
+            WHEN EXTRACT(dow FROM (rtu.arrival_time AT TIME ZONE 'America/Vancouver')) IN (0, 6) THEN 'Weekend'
             ELSE 'Weekday'
         END AS day_type,
         CASE
-            WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 7 AND 9 THEN 'Morning Rush'
-            WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 16 AND 18 THEN 'Evening Rush'
-            WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 9 AND 16 THEN 'Midday'
-            WHEN EXTRACT(hour FROM rtu.arrival_time) BETWEEN 18 AND 22 THEN 'Evening'
+            WHEN EXTRACT(hour FROM (rtu.arrival_time AT TIME ZONE 'America/Vancouver')) BETWEEN 7 AND 9 THEN 'Morning Rush'
+            WHEN EXTRACT(hour FROM (rtu.arrival_time AT TIME ZONE 'America/Vancouver')) BETWEEN 16 AND 18 THEN 'Evening Rush'
+            WHEN EXTRACT(hour FROM (rtu.arrival_time AT TIME ZONE 'America/Vancouver')) BETWEEN 9 AND 16 THEN 'Midday'
+            WHEN EXTRACT(hour FROM (rtu.arrival_time AT TIME ZONE 'America/Vancouver')) BETWEEN 18 AND 22 THEN 'Evening'
             ELSE 'Night'
         END AS time_period
     FROM rt_trip_updates rtu
@@ -304,10 +304,10 @@ SELECT
     d.departure_delay_seconds,
     -- Delay in minutes
     d.arrival_delay_seconds / 60.0 AS delay_minutes,
-    EXTRACT(hour FROM d.actual_arrival) AS hour_of_day,
-    EXTRACT(dow FROM d.actual_arrival) AS day_of_week,
+    EXTRACT(hour FROM (d.actual_arrival AT TIME ZONE 'America/Vancouver')) AS hour_of_day,
+    EXTRACT(dow FROM (d.actual_arrival AT TIME ZONE 'America/Vancouver')) AS day_of_week,
     CASE 
-        WHEN EXTRACT(dow FROM d.actual_arrival) IN (0, 6) THEN 'Weekend'
+        WHEN EXTRACT(dow FROM (d.actual_arrival AT TIME ZONE 'America/Vancouver')) IN (0, 6) THEN 'Weekend'
         ELSE 'Weekday'
     END AS day_type
 FROM rt_trip_updates_deduped d

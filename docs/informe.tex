@@ -753,9 +753,22 @@ de forma sistemáticamente más lenta que lo previsto (en rojo), así como tramo
 que tienden a adelantarse sobre el horario (en amarillo). El histograma de diferencias
 muestra una distribución aproximadamente unimodal, con una masa importante de segmentos
 con velocidades similares a las previstas y colas que capturan tanto episodios de
-fuerte sobreejecución como segmentos marcadamente más lentos que el plan. Con los datos obtenidos,
+fuerte sobreejecución como segmentos marcadamente más lentos que el plan.
+
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.75\textwidth]{%
+    ../realtime_analysis/queries/results/speed_vs_schedule/speed_by_day_type.png}
+  \caption{Comparación de velocidades programadas vs.\ observadas por tipo de día
+  (día de semana vs.\ fin de semana).}
+  \label{fig:realtime-speed-day-type}
+\end{figure}
+
+Con los datos obtenidos,
 tenemos en cuenta tanto los fines de semana como los días de semana para poder tener una vista
-completa del funcionamiento del servicio.
+completa del funcionamiento del servicio. El gráfico muestra que las velocidades promedio son
+mayores durante los fines de semana, tanto programadas como observadas, lo cual es consistente
+con menor congestión vehicular en esos días.
 
 \subsection{Desempeño de horarios (schedule times)}
 
@@ -803,10 +816,20 @@ El desempeño de puntualidad se ilustra mediante un mapa y un histograma de demo
   \centering
   \includegraphicsifexists[width=0.8\textwidth]{%
     ../realtime_analysis/queries/results/schedule_times/delay_map.png}
-  \caption{Mapa de desempeño horario
-  (amarillo = adelantado $\geq$ 3~min, verde = dentro de $\pm$3~min,
-  rojo = retrasado $\geq$ 3~min).}
+  \caption{Mapa de desempeño horario en paradas
+  (verde = dentro de $\pm$3~min, amarillo = $\pm$2--7~min,
+  rojo = más de $\pm$7~min).}
   \label{fig:realtime-delay-map}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.8\textwidth]{%
+    ../realtime_analysis/queries/results/delay_segments/delay_segments_map.png}
+  \caption{Mapa de demoras por segmento (entre paradas consecutivas)
+  (verde = dentro de $\pm$3~min, amarillo = $\pm$2--7~min,
+  rojo = más de $\pm$7~min).}
+  \label{fig:realtime-delay-segments-map}
 \end{figure}
 
 \begin{figure}[H]
@@ -817,7 +840,9 @@ El desempeño de puntualidad se ilustra mediante un mapa y un histograma de demo
   \label{fig:realtime-delay-hist}
 \end{figure}
 
-El mapa permite ubicar espacialmente los puntos donde el sistema opera de forma
+El primer mapa muestra las demoras acumuladas en cada parada (demora total desde el inicio del viaje),
+mientras que el segundo mapa muestra las demoras incrementales por segmento (demora acumulada durante
+el trayecto entre dos paradas consecutivas). Ambos mapas permiten ubicar espacialmente los puntos donde el sistema opera de forma
 mayormente puntual (en verde) frente a corredores donde predominan los retrasos
 o adelantos marcados. Los gráficos muestran una cola hacia valores positivos que
 indica un muy leve predominio de demoras por encima del horario programado, especialmente en calles troncales. Sin embargo, podemos ver 
@@ -905,10 +930,21 @@ y su clasificación por categorías:
   \label{fig:realtime-headway-categories}
 \end{figure}
 
+\begin{figure}[H]
+  \centering
+  \includegraphicsifexists[width=0.75\textwidth]{%
+    ../realtime_analysis/queries/results/headway_analysis/headway_by_day_type.png}
+  \caption{Comparación de headways y tasa de \emph{bunching} por tipo de día
+  (día de semana vs.\ fin de semana).}
+  \label{fig:realtime-headway-day-type}
+\end{figure}
+
 Los gráficos muestran la distribución de intervalos entre vehículos y la
 proporción de headways en cada categoría por ruta, lo que
 permite cuantificar la incidencia del \emph{bus bunching} y de las brechas de
-servicio prolongadas. Debido a la hora y dias de los datos, creemos que el headway analizado es representativo
+servicio prolongadas. La comparación por tipo de día revela que los fines de semana
+presentan headways promedio más largos y menor incidencia de \emph{bunching}, reflejando
+una menor frecuencia de servicio durante esos días. Debido a la hora y dias de los datos, creemos que el headway analizado es representativo
 del servicio en su totalidad.
 
 \subsection{Headway observado vs.\ headway programado}

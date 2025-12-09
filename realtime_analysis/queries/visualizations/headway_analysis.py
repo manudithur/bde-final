@@ -214,43 +214,44 @@ def plot_headway_by_route(df: pd.DataFrame, suffix: str) -> Path:
     return output_path
 
 
-def plot_headway_by_hour(df: pd.DataFrame, suffix: str) -> Path:
-    """Create line chart of headway patterns by hour."""
-    hourly = df.groupby("hour_of_day").agg({
+def plot_headway_by_day_type(df: pd.DataFrame, suffix: str) -> Path:
+    """Compare headway patterns by day type (weekend vs weekday)."""
+    day_type_stats = df.groupby("day_type").agg({
         "headway_minutes": ["mean", "std"],
         "headway_category": lambda x: (x == "Bunched (<3 min)").sum() / len(x) * 100
     }).reset_index()
-    hourly.columns = ["Hour", "Avg Headway", "Std Headway", "Bunching Rate"]
+    day_type_stats.columns = ["Day Type", "Avg Headway", "Std Headway", "Bunching Rate"]
     
-    fig, ax1 = plt.subplots(figsize=(12, 6))
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+    
+    x = range(len(day_type_stats))
+    width = 0.35
     
     color1 = '#3498db'
-    ax1.plot(hourly["Hour"], hourly["Avg Headway"], 'o-', color=color1, 
-             linewidth=2, markersize=8, label='Avg Headway')
-    ax1.fill_between(hourly["Hour"], 
-                     hourly["Avg Headway"] - hourly["Std Headway"],
-                     hourly["Avg Headway"] + hourly["Std Headway"],
-                     alpha=0.2, color=color1)
-    ax1.set_xlabel("Hour of Day", fontsize=12)
+    bars1 = ax1.bar([i - width/2 for i in x], day_type_stats["Avg Headway"], width,
+                    label='Avg Headway (min)', color=color1, alpha=0.8)
+    ax1.set_xlabel("Day Type", fontsize=12)
     ax1.set_ylabel("Average Headway (min)", fontsize=12, color=color1)
     ax1.tick_params(axis='y', labelcolor=color1)
-    ax1.set_xticks(range(0, 24))
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(day_type_stats["Day Type"])
     
     ax2 = ax1.twinx()
     color2 = '#e74c3c'
-    ax2.bar(hourly["Hour"], hourly["Bunching Rate"], alpha=0.3, color=color2, label='Bunching Rate')
+    bars2 = ax2.bar([i + width/2 for i in x], day_type_stats["Bunching Rate"], width,
+                    label='Bunching Rate (%)', color=color2, alpha=0.8)
     ax2.set_ylabel("Bunching Rate (%)", fontsize=12, color=color2)
     ax2.tick_params(axis='y', labelcolor=color2)
     
-    ax1.set_title("BUS Headway Patterns by Hour of Day", fontsize=14, fontweight='bold')
-    ax1.grid(alpha=0.3)
+    ax1.set_title("BUS Headway Patterns by Day Type", fontsize=14, fontweight='bold')
+    ax1.grid(axis='y', alpha=0.3)
     
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right')
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='best')
     
     plt.tight_layout()
-    output_path = RESULTS_DIR / f"headway_by_hour.png"
+    output_path = RESULTS_DIR / f"headway_by_day_type.png"
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
     return output_path
@@ -409,8 +410,8 @@ def main():
     path = plot_headway_by_route(df, suffix)
     print(f"  ✓ Bunching by route: {path}")
     
-    path = plot_headway_by_hour(df, suffix)
-    print(f"  ✓ Headway by hour: {path}")
+    path = plot_headway_by_day_type(df, suffix)
+    print(f"  ✓ Headway by day type: {path}")
     
     path = plot_headway_by_time_period(df, suffix)
     print(f"  ✓ Headway by time period: {path}")

@@ -86,6 +86,9 @@ def fetch_speed_comparison_data(conn) -> pd.DataFrame:
     if df.empty:
         return df
     
+    # Add day_type based on day_of_week
+    df["day_type"] = df["day_of_week"].apply(lambda x: "Weekend" if x in [0, 6] else "Weekday")
+    
     # Calculate speed differences
     df["speed_delta_kmh"] = df["actual_speed_kmh"] - df["scheduled_speed_kmh"]
     df["speed_ratio"] = df["actual_speed_kmh"] / df["scheduled_speed_kmh"]
@@ -230,30 +233,34 @@ def plot_speed_by_route(df: pd.DataFrame, suffix: str) -> Path:
 
 
 
-def plot_speed_by_hour(df: pd.DataFrame, suffix: str) -> Path:
-    """Analyze speed differences by hour of day."""
-    hourly = df.groupby("hour_of_day").agg({
+def plot_speed_by_day_type(df: pd.DataFrame, suffix: str) -> Path:
+    """Analyze speed differences by day type (weekend vs weekday)."""
+    day_type_stats = df.groupby("day_type").agg({
         "scheduled_speed_kmh": "mean",
         "actual_speed_kmh": "mean",
         "speed_delta_kmh": "mean"
     }).reset_index()
     
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))
     
-    ax.plot(hourly["hour_of_day"], hourly["scheduled_speed_kmh"], 
-            'o-', color='#1f77b4', linewidth=2, markersize=8, label='Scheduled')
-    ax.plot(hourly["hour_of_day"], hourly["actual_speed_kmh"], 
-            's-', color='#ff7f0e', linewidth=2, markersize=8, label='Actual')
+    x = range(len(day_type_stats))
+    width = 0.35
     
-    ax.set_xlabel("Hour of Day", fontsize=12)
+    bars1 = ax.bar([i - width/2 for i in x], day_type_stats["scheduled_speed_kmh"], width,
+                   label='Scheduled', color='#1f77b4', alpha=0.8)
+    bars2 = ax.bar([i + width/2 for i in x], day_type_stats["actual_speed_kmh"], width,
+                   label='Actual', color='#ff7f0e', alpha=0.8)
+    
+    ax.set_xlabel("Day Type", fontsize=12)
     ax.set_ylabel("Average Speed (km/h)", fontsize=12)
-    ax.set_title("Average BUS Speed by Hour of Day", fontsize=14, fontweight='bold')
-    ax.set_xticks(range(0, 24))
+    ax.set_title("Average BUS Speed by Day Type", fontsize=14, fontweight='bold')
+    ax.set_xticks(x)
+    ax.set_xticklabels(day_type_stats["day_type"])
     ax.legend()
-    ax.grid(alpha=0.3)
+    ax.grid(axis='y', alpha=0.3)
     
     plt.tight_layout()
-    output_path = RESULTS_DIR / f"speed_by_hour.png"
+    output_path = RESULTS_DIR / f"speed_by_day_type.png"
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
     return output_path
@@ -372,8 +379,8 @@ def main():
     path = plot_speed_by_route(df, suffix)
     print(f"  ✓ Speed by route: {path}")
     
-    path = plot_speed_by_hour(df, suffix)
-    print(f"  ✓ Speed by hour: {path}")
+    path = plot_speed_by_day_type(df, suffix)
+    print(f"  ✓ Speed by day type: {path}")
     
     csv_path = generate_summary_csv(df, suffix)
     print(f"  ✓ Summary CSV: {csv_path}")

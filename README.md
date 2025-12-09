@@ -4,6 +4,10 @@ Spatial database analysis of Vancouver transit data with both scheduled GTFS and
 
 ---
 
+## Notes
+
+All the data used for this analysis may be found in [this Google Drive folder](https://drive.google.com/drive/folders/19Hic_CPM1u5DPWin90Dc3BLOUnqnwCB3?usp=sharing).
+
 ## Prerequisites
 
 Before running any commands, ensure the following are in place:
@@ -85,7 +89,7 @@ This should return version numbers for both extensions if they're properly insta
    ```
    Requires: MobilityDB extension enabled, GTFS tables from step 2
 
-4. **(Optional) Load population density data for Vancouver**
+4. **Load population density data for Vancouver**
    ```bash
    python static_analysis/data/download_population_data.py \
      --geo static_analysis/data/population/vancouver_geo.geojson

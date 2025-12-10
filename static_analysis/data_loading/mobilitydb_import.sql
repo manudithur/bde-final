@@ -2,7 +2,6 @@
 -- Adapted from Prague GTFS Analysis for Vancouver transit system
 
 -- Ensure MobilityDB extension is installed
--- Using mobilitydb/mobilitydb:latest Docker image which has it pre-installed
 CREATE EXTENSION IF NOT EXISTS mobilitydb CASCADE;
 
 -- Create transit_stops table (renamed from trip_stops for uniqueness)
@@ -21,7 +20,7 @@ CREATE TABLE transit_stops (
 
 DO $$
 BEGIN
-  RAISE NOTICE '...Inserting transit_stops';
+  RAISE NOTICE '...Inserting transit_stops';x
   INSERT INTO transit_stops (trip_id, stop_sequence, num_stops, route_id, service_id, shape_id, stop_id, arrival_time)
   SELECT t.trip_id, stop_sequence,
          MAX(stop_sequence) OVER (PARTITION BY t.trip_id),

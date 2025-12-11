@@ -56,6 +56,9 @@ class Settings:
         os.getenv("GTFS_RT_OUTPUT_DIR", "realtime_analysis/output")
     ).expanduser()
 
+    valhalla_url: str = os.getenv("VALHALLA_URL", "http://localhost:8002")
+    use_valhalla: bool = os.getenv("USE_VALHALLA_MAPMATCHING", "true").lower() == "true"
+
     def has_route_filter(self) -> bool:
         return bool(self.target_route_ids or self.target_route_short_names)
 

@@ -1,5 +1,4 @@
 -- Schema objects for GTFS-Realtime ingestion
--- Run with: cat realtime_analysis/data_loading/realtime_schema.sql | docker exec -i vancouver_gtfs_db psql -U postgres -d gtfs
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS mobilitydb;
